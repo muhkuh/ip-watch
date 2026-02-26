@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="IP Watch icon large">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d2a45"/>
+      <stop offset="100%" stop-color="#111a2c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#0b1220"/>
+  <rect x="64" y="64" width="384" height="384" rx="96" fill="url(#g)" stroke="#36c2ff" stroke-opacity=".35" stroke-width="4"/>
+  <rect x="150" y="166" width="212" height="136" rx="28" fill="none" stroke="#eaf2ff" stroke-width="14"/>
+  <rect x="168" y="328" width="176" height="16" rx="8" fill="#8fa3bf"/>
+  <circle cx="388" cy="126" r="34" fill="#7bf1a8"/>
+</svg>

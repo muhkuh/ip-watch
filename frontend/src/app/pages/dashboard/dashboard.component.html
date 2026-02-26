@@ -1,0 +1,492 @@
+<section class="relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+1rem)]">
+  <div
+    *ngIf="refreshing()"
+    class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-bg/80 backdrop-blur-sm"
+  >
+    <div class="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+    <p class="text-sm font-semibold text-text">{{ t('refreshingOverlay') }}</p>
+  </div>
+
+  <div
+    class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-bg transition-opacity duration-500"
+    [class.opacity-0]="!splashVisible()"
+    [class.opacity-100]="splashVisible()"
+    [class.invisible]="!splashVisible()"
+  >
+    <div class="flex flex-col items-center gap-4">
+      <div class="console-badge"></div>
+      <h1 class="font-heading text-2xl tracking-wide text-text">ip-watch</h1>
+    </div>
+  </div>
+
+  <header class="mb-5 pt-2">
+    <div class="flex items-center justify-between gap-2">
+      <h1 class="font-heading text-3xl text-text">{{ t('title') }}</h1>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold"
+          [ngClass]="
+            locale() === 'de'
+              ? 'border-primary text-primary'
+              : 'border-[var(--card-border)] text-muted'
+          "
+          (click)="setLocale('de')"
+        >
+          🇩🇪 DE
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold"
+          [ngClass]="
+            locale() === 'en'
+              ? 'border-primary text-primary'
+              : 'border-[var(--card-border)] text-muted'
+          "
+          (click)="setLocale('en')"
+        >
+          🇬🇧 EN
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+          [disabled]="refreshing()"
+          (click)="refreshStatuses()"
+        >
+          <span *ngIf="!refreshing()">{{ t('refresh') }}</span>
+          <span *ngIf="refreshing()">{{ t('refreshing') }}</span>
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--card-border)] text-sm font-semibold text-muted"
+          [attr.aria-label]="t('openHelp')"
+          (click)="openHelpDialog()"
+        >
+          ?
+        </button>
+      </div>
+    </div>
+    <p class="mt-1 text-sm text-muted">{{ t('subtitle') }}</p>
+    <div class="mt-3 inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] px-3 py-1.5 text-xs">
+      <span
+        class="h-2 w-2 rounded-full"
+        [ngClass]="{
+          'bg-accent': probeConnection() === 'connected',
+          'bg-warning': probeConnection() === 'idle',
+          'bg-danger': probeConnection() === 'unavailable'
+        }"
+      ></span>
+      <span class="text-muted">{{ t('probeApi') }} {{ getProbeConnectionLabel() }}</span>
+    </div>
+    <div class="mt-2 flex items-center gap-2">
+      <span class="text-xs text-muted">{{ t('host') }} {{ probeBaseUrl() }}</span>
+      <button
+        type="button"
+        class="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+        (click)="openSettingsDialog()"
+      >
+        {{ t('change') }}
+      </button>
+    </div>
+
+    <div class="mt-3 flex flex-wrap gap-2">
+      <span
+        *ngFor="let item of statusLegend"
+        class="inline-flex items-center gap-1.5 rounded-full border border-[var(--card-border)] px-2 py-1 text-[11px] text-muted"
+      >
+        <span class="h-2 w-2 rounded-full" [ngClass]="item.colorClass"></span>
+        {{ item.label }}
+      </span>
+    </div>
+  </header>
+
+  <div
+    *ngIf="toastMessage()"
+    class="mb-4 rounded-lg border px-3 py-2 text-sm font-medium"
+    [ngClass]="{
+      'border-accent/40 bg-accent/10 text-accent': toastType() === 'success',
+      'border-danger/40 bg-danger/10 text-danger': toastType() === 'error'
+    }"
+  >
+    {{ toastMessage() }}
+  </div>
+
+  <div class="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+    <div>
+      <p class="text-xs uppercase text-muted">{{ t('total') }}</p>
+      <p class="font-heading text-lg">{{ summary().total }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-muted">{{ t('online') }}</p>
+      <p class="font-heading text-lg text-accent">{{ summary().online }}</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-muted">{{ t('offline') }}</p>
+      <p class="font-heading text-lg text-danger">{{ summary().offline }}</p>
+    </div>
+  </div>
+
+  <div
+    *ngIf="loading()"
+    class="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm text-muted"
+  >
+    {{ t('loading') }}
+  </div>
+
+  <ul *ngIf="!loading()" class="space-y-3">
+    <li
+      *ngFor="let device of devices()"
+      class="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="device-type-icon">
+              <ng-container [ngSwitch]="device.type">
+                <svg *ngSwitchCase="'PS5'" viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+                  <rect x="4" y="9" width="16" height="8" rx="4" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M8 12h3M9.5 10.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  <circle cx="15.5" cy="12" r="1.2" fill="currentColor" />
+                  <circle cx="18" cy="12" r="1.2" fill="currentColor" />
+                </svg>
+                <svg *ngSwitchCase="'PC'" viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+                  <rect x="4" y="5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M10 19h4M12 16v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+                <svg *ngSwitchDefault viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+                  <rect x="3.5" y="6" width="17" height="10.5" rx="1.8" stroke="currentColor" stroke-width="1.8" />
+                  <path d="M8.5 19h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                </svg>
+              </ng-container>
+            </span>
+            <p class="truncate font-semibold text-text">{{ device.name }}</p>
+          </div>
+          <p class="font-mono text-sm text-muted">{{ device.ip }}</p>
+          <p class="mt-1 text-xs text-muted" *ngIf="device.probeProtocol">
+            {{ t('httpProbeLabel') }} {{ device.probeProtocol }}{{ device.probePort ? ':' + device.probePort : '' }}
+          </p>
+          <div class="mt-1 flex items-center gap-3 text-xs text-muted">
+            <span class="inline-flex items-center gap-1">
+              <span
+                class="h-2.5 w-2.5 rounded-full border border-[var(--card-border)]"
+                [ngClass]="isPingSuccess(device) ? 'bg-primary border-primary' : 'bg-transparent'"
+              ></span>
+              {{ t('diagPing') }}
+            </span>
+            <span class="inline-flex items-center gap-1">
+              <span
+                class="h-2.5 w-2.5 rounded-full border border-[var(--card-border)]"
+                [ngClass]="isHttpSuccess(device) ? 'bg-warning border-warning' : 'bg-transparent'"
+              ></span>
+              {{ t('diagHttp') }}
+            </span>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button
+              type="button"
+              class="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+              (click)="openEditDialog(device)"
+            >
+              {{ t('edit') }}
+            </button>
+            <button
+              type="button"
+              class="rounded-md border border-danger/40 px-2 py-1 text-xs font-semibold text-danger"
+              (click)="deleteDevice(device)"
+            >
+              {{ t('delete') }}
+            </button>
+          </div>
+        </div>
+        <span
+          class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold"
+          [ngClass]="{
+            'bg-accent/20 text-accent': device.isReachable,
+            'bg-danger/20 text-danger': !device.isReachable
+          }"
+        >
+          {{ device.isReachable ? t('online') : t('offline') }}
+        </span>
+      </div>
+
+      <div class="mt-3 flex items-center justify-between text-xs text-muted">
+        <span class="rounded-full border border-[var(--card-border)] px-2 py-1">{{ device.statusSource }}</span>
+        <span>{{ device.lastCheckedAt | date: 'shortTime' }}</span>
+      </div>
+    </li>
+  </ul>
+
+  <button
+    type="button"
+    class="fixed bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] right-4 flex h-[var(--fab-size)] w-[var(--fab-size)] items-center justify-center rounded-full bg-primary text-3xl font-semibold text-bg shadow-lg transition-transform duration-200 hover:scale-105"
+    (click)="openCreateDialog()"
+    [attr.aria-label]="t('addDeviceAria')"
+  >
+    +
+  </button>
+
+  <div
+    *ngIf="createDialogOpen()"
+    class="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]"
+    (click)="closeCreateDialog()"
+  ></div>
+
+  <section
+    *ngIf="createDialogOpen()"
+    aria-modal="true"
+    class="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-2xl"
+  >
+    <div class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted/40"></div>
+    <h2 class="font-heading text-xl text-text">{{ dialogMode() === 'edit' ? t('editDeviceTitle') : t('addDeviceTitle') }}</h2>
+
+    <label class="mt-4 block text-sm text-muted" for="deviceName">{{ t('name') }}</label>
+    <input
+      id="deviceName"
+      type="text"
+      class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+      [ngModel]="formState().name"
+      (ngModelChange)="onNameChange($event)"
+      maxlength="40"
+      placeholder="Living Room TV"
+    />
+
+    <p class="mt-4 text-sm text-muted">{{ t('type') }}</p>
+    <div class="mt-2 grid grid-cols-3 gap-2">
+      <button
+        *ngFor="let type of deviceTypes"
+        type="button"
+        class="flex min-h-[var(--tap-min)] items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition"
+        [ngClass]="
+          formState().type === type
+            ? 'border-primary bg-primary/20 text-primary'
+            : 'border-[var(--card-border)] text-muted'
+        "
+        (click)="setType(type)"
+      >
+        <span class="device-type-icon !h-6 !w-6">
+          <ng-container [ngSwitch]="type">
+            <svg *ngSwitchCase="'PS5'" viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+              <rect x="4" y="9" width="16" height="8" rx="4" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8 12h3M9.5 10.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <circle cx="15.5" cy="12" r="1.2" fill="currentColor" />
+              <circle cx="18" cy="12" r="1.2" fill="currentColor" />
+            </svg>
+            <svg *ngSwitchCase="'PC'" viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+              <rect x="4" y="5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.8" />
+              <path d="M10 19h4M12 16v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            <svg *ngSwitchDefault viewBox="0 0 24 24" fill="none" class="h-4 w-4">
+              <rect x="3.5" y="6" width="17" height="10.5" rx="1.8" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8.5 19h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </ng-container>
+        </span>
+        {{ type }}
+      </button>
+    </div>
+
+    <label class="mt-4 block text-sm text-muted" for="deviceIp">{{ t('ipAddress') }}</label>
+    <input
+      id="deviceIp"
+      type="text"
+      inputmode="decimal"
+      class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 font-mono text-text outline-none ring-primary transition focus:ring-2"
+      [ngModel]="formState().ip"
+      (ngModelChange)="onIpInput($event)"
+      maxlength="15"
+      placeholder="192.168.0.22"
+    />
+
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm text-muted" for="deviceProbeProtocol">{{ t('httpProbe') }}</label>
+        <select
+          id="deviceProbeProtocol"
+          class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+          [ngModel]="formState().probeProtocol ?? ''"
+          (ngModelChange)="onProbeProtocolChange($event)"
+        >
+          <option value="">off</option>
+          <option value="http">http</option>
+          <option value="https">https</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-muted" for="deviceProbePort">{{ t('probePortOptional') }}</label>
+        <input
+          id="deviceProbePort"
+          type="text"
+          inputmode="numeric"
+          class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+          [ngModel]="formState().probePort ?? ''"
+          (ngModelChange)="onProbePortInput($event)"
+          maxlength="5"
+          placeholder="80"
+        />
+      </div>
+    </div>
+
+    <p *ngIf="submitError()" class="mt-3 text-sm text-danger">{{ submitError() }}</p>
+
+    <div class="mt-5 grid grid-cols-2 gap-3">
+      <button
+        type="button"
+        class="min-h-[var(--tap-min)] rounded-md border border-[var(--card-border)] px-4 py-3 font-semibold text-muted"
+        (click)="closeCreateDialog()"
+      >
+        {{ t('cancel') }}
+      </button>
+      <button
+        type="button"
+        class="min-h-[var(--tap-min)] rounded-md bg-primary px-4 py-3 font-semibold text-bg"
+        (click)="submitCreateDevice()"
+      >
+        {{ dialogMode() === 'edit' ? t('update') : t('save') }}
+      </button>
+    </div>
+  </section>
+
+  <div
+    *ngIf="settingsDialogOpen()"
+    class="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]"
+    (click)="closeSettingsDialog()"
+  ></div>
+
+  <section
+    *ngIf="settingsDialogOpen()"
+    aria-modal="true"
+    class="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-2xl"
+  >
+    <div class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted/40"></div>
+    <h2 class="font-heading text-xl text-text">{{ t('settingsTitle') }}</h2>
+    <p class="mt-1 text-xs text-muted">{{ t('settingsDefault') }}</p>
+
+    <label class="mt-4 block text-sm text-muted" for="probeHost">{{ t('settingsLocalHost') }}</label>
+    <input
+      id="probeHost"
+      type="text"
+      class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+      [ngModel]="settingsHostState()"
+      (ngModelChange)="onSettingsHostChange($event)"
+      placeholder="192.168.16.30"
+    />
+
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm text-muted" for="probeProtocol">{{ t('protocol') }}</label>
+        <select
+          id="probeProtocol"
+          class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+          [ngModel]="settingsProtocolState()"
+          (ngModelChange)="onSettingsProtocolChange($event)"
+        >
+          <option value="http">http</option>
+          <option value="https">https</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-muted" for="probePort">{{ t('portOptional') }}</label>
+        <input
+          id="probePort"
+          type="text"
+          inputmode="numeric"
+          class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+          [ngModel]="settingsPortState()"
+          (ngModelChange)="onSettingsPortChange($event)"
+          maxlength="5"
+          placeholder="80"
+        />
+      </div>
+    </div>
+
+    <label class="mt-4 block text-sm text-muted" for="probeToken">{{ t('apiTokenOptional') }}</label>
+    <input
+      id="probeToken"
+      type="password"
+      class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 text-text outline-none ring-primary transition focus:ring-2"
+      [ngModel]="settingsTokenState()"
+      (ngModelChange)="onSettingsTokenChange($event)"
+      placeholder="Bearer token"
+    />
+
+    <p class="mt-3 text-xs text-muted">
+      {{ t('preview') }} <span class="font-mono">{{ settingsPreviewUrl() }}</span>
+    </p>
+    <p class="mt-1 text-xs text-muted">
+      {{ t('defaultPort') }}
+      {{ settingsProtocolState() === 'https' ? '443 (HTTPS)' : '80 (HTTP)' }}
+    </p>
+    <p *ngIf="settingsValidationErrorState()" class="mt-2 text-sm text-danger">
+      {{ settingsValidationErrorState() }}
+    </p>
+
+    <div class="mt-5 grid grid-cols-2 gap-3">
+      <button
+        type="button"
+        class="min-h-[var(--tap-min)] rounded-md border border-[var(--card-border)] px-4 py-3 font-semibold text-muted"
+        (click)="closeSettingsDialog()"
+      >
+        {{ t('cancel') }}
+      </button>
+      <button
+        type="button"
+        class="min-h-[var(--tap-min)] rounded-md bg-primary px-4 py-3 font-semibold text-bg"
+        (click)="saveSettings()"
+      >
+        {{ t('save') }}
+      </button>
+    </div>
+  </section>
+
+  <div
+    *ngIf="helpDialogOpen()"
+    class="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]"
+    (click)="closeHelpDialog()"
+  ></div>
+
+  <section
+    *ngIf="helpDialogOpen()"
+    aria-modal="true"
+    class="fixed left-1/2 top-1/2 z-50 max-h-[85vh] w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-2xl"
+  >
+    <div class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted/40"></div>
+    <h2 class="font-heading text-xl text-text">{{ t('statusHelpTitle') }}</h2>
+    <p class="mt-1 text-xs text-muted">{{ t('statusHelpSubtitle') }}</p>
+
+    <div class="mt-4 space-y-2 text-sm">
+      <p><span class="font-semibold text-accent">PING+HTTP</span>: {{ t('helpPingHttp') }}</p>
+      <p><span class="font-semibold text-primary">PING</span>: {{ t('helpPing') }}</p>
+      <p><span class="font-semibold text-warning">HTTP</span>: {{ t('helpHttp') }}</p>
+      <p><span class="font-semibold text-danger">UNKNOWN</span>: {{ t('helpUnknown') }}</p>
+    </div>
+
+    <h3 class="mt-5 font-semibold text-text">{{ t('troubleshooting') }}</h3>
+    <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
+      <li>{{ t('helpTip1') }}</li>
+      <li>{{ t('helpTip2') }}</li>
+      <li>{{ t('helpTip3') }}</li>
+      <li>{{ t('helpTip4') }}</li>
+      <li>{{ t('helpTip5') }}</li>
+    </ul>
+
+    <div class="mt-4 rounded-md border border-[var(--card-border)] bg-bg/40 p-3 text-sm">
+      <p class="text-muted">{{ t('probeHealthEndpoint') }}</p>
+      <a
+        [href]="probeHealthUrl()"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="break-all font-mono text-primary underline decoration-primary/60"
+      >
+        {{ probeHealthUrl() }}
+      </a>
+    </div>
+
+    <button
+      type="button"
+      class="mt-5 min-h-[var(--tap-min)] w-full rounded-md bg-primary px-4 py-3 font-semibold text-bg"
+      (click)="closeHelpDialog()"
+    >
+      {{ t('close') }}
+    </button>
+  </section>
+</section>

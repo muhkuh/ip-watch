@@ -1,0 +1,52 @@
+[
+  {
+    "id": "7d6dd03d-e6da-40a6-bbe7-83918020062d",
+    "name": "Test 1",
+    "type": "PS5",
+    "ip": "192.168.016.20",
+    "probeProtocol": null,
+    "probePort": null,
+    "createdAt": "2026-02-26T13:37:43.162Z",
+    "updatedAt": "2026-02-26T13:37:43.162Z"
+  },
+  {
+    "id": "ac5be3b4-9c15-40fc-84a4-7fda763397e4",
+    "name": "Offline Test IP",
+    "type": "TV",
+    "ip": "10.255.255.1",
+    "probeProtocol": null,
+    "probePort": null,
+    "createdAt": "2026-02-26T13:25:58.901Z",
+    "updatedAt": "2026-02-26T13:25:58.901Z"
+  },
+  {
+    "id": "f407405f-e4d9-47a2-9b48-fd36cee73d96",
+    "name": "Docker Localhost",
+    "type": "PC",
+    "ip": "127.0.0.1",
+    "probeProtocol": null,
+    "probePort": null,
+    "createdAt": "2026-02-26T13:25:58.886Z",
+    "updatedAt": "2026-02-26T13:25:58.886Z"
+  },
+  {
+    "id": "6495ba02-5456-438b-9726-71c4d67fa908",
+    "name": "Living Room PS5",
+    "type": "PS5",
+    "ip": "192.168.16.20",
+    "probeProtocol": null,
+    "probePort": null,
+    "createdAt": "2026-02-26T11:45:34.365Z",
+    "updatedAt": "2026-02-26T11:45:34.365Z"
+  },
+  {
+    "id": "3a987fbb-0599-4b64-abeb-2a1c6a9dea54",
+    "name": "Office PC",
+    "type": "PC",
+    "ip": "192.168.16.30",
+    "probeProtocol": null,
+    "probePort": null,
+    "createdAt": "2026-02-26T11:45:34.366Z",
+    "updatedAt": "2026-02-26T11:45:34.366Z"
+  }
+]

@@ -1,0 +1,43 @@
+:root {
+  --color-bg: #0b1220;
+  --color-surface: #121a2b;
+  --color-primary: #36c2ff;
+  --color-accent: #7bf1a8;
+  --color-danger: #ff5a5f;
+  --color-warning: #ffc857;
+  --color-text: #eaf2ff;
+  --color-muted: #8fa3bf;
+
+  --status-ping-http: var(--color-accent);
+  --status-ping-only: var(--color-primary);
+  --status-http-only: var(--color-warning);
+  --status-unknown: var(--color-danger);
+
+  --app-bg: radial-gradient(120% 120% at 0% 0%, #17233d 0%, var(--color-bg) 52%);
+  --card-bg: color-mix(in srgb, var(--color-surface) 92%, #ffffff 8%);
+  --card-border: color-mix(in srgb, var(--color-muted) 30%, transparent);
+
+  --font-heading: "Sora", "Segoe UI", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  --tap-min: 44px;
+  --fab-size: 58px;
+  --icon-size-sm: 20px;
+  --icon-size-md: 24px;
+
+  --motion-fast: 140ms;
+  --motion-base: 240ms;
+  --motion-slow: 380ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}

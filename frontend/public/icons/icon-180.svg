@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="IP Watch icon touch">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d2a45"/>
+      <stop offset="100%" stop-color="#111a2c"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="42" fill="#0b1220"/>
+  <rect x="22" y="22" width="136" height="136" rx="34" fill="url(#g)" stroke="#36c2ff" stroke-opacity=".35"/>
+  <rect x="52" y="56" width="76" height="50" rx="10" fill="none" stroke="#eaf2ff" stroke-width="5"/>
+  <rect x="58" y="114" width="64" height="6" rx="3" fill="#8fa3bf"/>
+  <circle cx="136" cy="46" r="11" fill="#7bf1a8"/>
+</svg>

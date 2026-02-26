@@ -1,0 +1,38 @@
+services:
+  probe-host:
+    build:
+      context: ./probe-host
+    container_name: ip-watch-probe-host
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      PING_TIMEOUT_SEC: 1
+      HTTP_TIMEOUT_MS: 1500
+      ENABLE_HTTP_BY_DEFAULT: "false"
+      PROBE_API_TOKEN: ""
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    image: nginx:1.27-alpine
+    container_name: ip-watch-web
+    depends_on:
+      probe-host:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    volumes:
+      - ./frontend/dist/ip-watch-pwa/browser:/usr/share/nginx/html:ro
+      - ./deploy/nginx/ip-watch-docker.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
