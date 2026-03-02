@@ -1,4 +1,5 @@
-<section class="relative min-h-screen px-4 pb-28 pt-[calc(env(safe-area-inset-top)+1rem)]">
+<section class="relative flex h-full flex-col overflow-hidden px-4 pb-0 pt-[calc(env(safe-area-inset-top)+1rem)]">
+  <div>
   <div
     *ngIf="refreshing()"
     class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-4 bg-bg/80 backdrop-blur-sm"
@@ -15,38 +16,14 @@
   >
     <div class="flex flex-col items-center gap-4">
       <div class="console-badge"></div>
-      <h1 class="font-heading text-2xl tracking-wide text-text">ip-watch</h1>
+      <h1 class="font-heading text-2xl tracking-wide text-text">IP Watch</h1>
     </div>
   </div>
 
   <header class="mb-5 pt-2">
     <div class="flex items-center justify-between gap-2">
-      <h1 class="font-heading text-3xl text-text">{{ t('title') }}</h1>
+      <h1 class="font-heading text-2xl text-text">{{ t('title') }}</h1>
       <div class="flex items-center gap-2">
-        <button
-          type="button"
-          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold"
-          [ngClass]="
-            locale() === 'de'
-              ? 'border-primary text-primary'
-              : 'border-[var(--card-border)] text-muted'
-          "
-          (click)="setLocale('de')"
-        >
-          🇩🇪 DE
-        </button>
-        <button
-          type="button"
-          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold"
-          [ngClass]="
-            locale() === 'en'
-              ? 'border-primary text-primary'
-              : 'border-[var(--card-border)] text-muted'
-          "
-          (click)="setLocale('en')"
-        >
-          🇬🇧 EN
-        </button>
         <button
           type="button"
           class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
@@ -58,7 +35,19 @@
         </button>
         <button
           type="button"
-          class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--card-border)] text-sm font-semibold text-muted"
+          class="inline-flex min-h-[var(--tap-min)] items-center gap-1 rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+          [attr.aria-label]="locale() === 'de' ? 'Switch to English' : 'Auf Deutsch umschalten'"
+          (click)="setLocale(locale() === 'de' ? 'en' : 'de')"
+        >
+          <span
+            class="flag-icon"
+            [ngClass]="locale() === 'de' ? 'flag-en' : 'flag-de'"
+            aria-hidden="true"
+          ></span>
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-[var(--tap-min)] items-center justify-center rounded-md border border-[var(--card-border)] px-2 text-sm font-semibold text-muted"
           [attr.aria-label]="t('openHelp')"
           (click)="openHelpDialog()"
         >
@@ -67,22 +56,26 @@
       </div>
     </div>
     <p class="mt-1 text-sm text-muted">{{ t('subtitle') }}</p>
-    <div class="mt-3 inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] px-3 py-1.5 text-xs">
-      <span
-        class="h-2 w-2 rounded-full"
-        [ngClass]="{
-          'bg-accent': probeConnection() === 'connected',
-          'bg-warning': probeConnection() === 'idle',
-          'bg-danger': probeConnection() === 'unavailable'
-        }"
-      ></span>
-      <span class="text-muted">{{ t('probeApi') }} {{ getProbeConnectionLabel() }}</span>
-    </div>
-    <div class="mt-2 flex items-center gap-2">
-      <span class="text-xs text-muted">{{ t('host') }} {{ probeBaseUrl() }}</span>
+    <div class="mt-3 flex items-center gap-2">
+      <div class="inline-flex items-center gap-2 rounded-full border border-[var(--card-border)] px-3 py-1.5 text-xs">
+        <span
+          *ngIf="probeConnection() === 'idle'"
+          class="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"
+          aria-hidden="true"
+        ></span>
+        <span
+          class="h-2 w-2 rounded-full"
+          [ngClass]="{
+            'bg-accent': probeConnection() === 'connected',
+            'bg-warning': probeConnection() === 'idle',
+            'bg-danger': probeConnection() === 'unavailable'
+          }"
+        ></span>
+        <span class="text-muted">{{ t('probeApi') }} {{ getProbeConnectionLabel() }}</span>
+      </div>
       <button
         type="button"
-        class="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+        class="rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
         (click)="openSettingsDialog()"
       >
         {{ t('change') }}
@@ -90,54 +83,68 @@
     </div>
 
     <div class="mt-3 flex flex-wrap gap-2">
-      <span
+      <button
         *ngFor="let item of statusLegend"
-        class="inline-flex items-center gap-1.5 rounded-full border border-[var(--card-border)] px-2 py-1 text-[11px] text-muted"
+        type="button"
+        class="inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold transition"
+        [ngClass]="
+          activeStatusFilters().has(item.key)
+            ? 'border-[var(--card-border)] text-text'
+            : 'border-[var(--card-border)] text-muted opacity-50'
+        "
+        [attr.aria-pressed]="activeStatusFilters().has(item.key)"
+        (click)="toggleStatusFilter(item.key)"
       >
         <span class="h-2 w-2 rounded-full" [ngClass]="item.colorClass"></span>
         {{ item.label }}
-      </span>
+      </button>
     </div>
   </header>
 
-  <div
-    *ngIf="toastMessage()"
-    class="mb-4 rounded-lg border px-3 py-2 text-sm font-medium"
-    [ngClass]="{
-      'border-accent/40 bg-accent/10 text-accent': toastType() === 'success',
-      'border-danger/40 bg-danger/10 text-danger': toastType() === 'error'
-    }"
-  >
-    {{ toastMessage() }}
-  </div>
-
-  <div class="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
-    <div>
-      <p class="text-xs uppercase text-muted">{{ t('total') }}</p>
-      <p class="font-heading text-lg">{{ summary().total }}</p>
-    </div>
-    <div>
-      <p class="text-xs uppercase text-muted">{{ t('online') }}</p>
-      <p class="font-heading text-lg text-accent">{{ summary().online }}</p>
-    </div>
-    <div>
-      <p class="text-xs uppercase text-muted">{{ t('offline') }}</p>
-      <p class="font-heading text-lg text-danger">{{ summary().offline }}</p>
-    </div>
-  </div>
-
-  <div
-    *ngIf="loading()"
-    class="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm text-muted"
-  >
-    {{ t('loading') }}
-  </div>
-
-  <ul *ngIf="!loading()" class="space-y-3">
-    <li
-      *ngFor="let device of devices()"
-      class="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 shadow-sm"
+    <div
+      *ngIf="toastMessage()"
+      class="mb-4 rounded-lg border px-3 py-2 text-sm font-medium"
+      [ngClass]="{
+        'border-accent/40 bg-accent/10 text-accent': toastType() === 'success',
+        'border-danger/40 bg-danger/10 text-danger': toastType() === 'error'
+      }"
     >
+      {{ toastMessage() }}
+    </div>
+
+    <div class="mx-auto w-full max-w-[520px] px-3">
+      <div
+        class="card-gradient mb-4 grid w-full grid-cols-3 gap-2 rounded-lg border border-[var(--card-border)] p-3"
+      >
+        <div>
+          <p class="text-xs uppercase text-muted">{{ t('total') }}</p>
+          <p class="font-heading text-lg">{{ summary().total }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase text-muted">{{ t('online') }}</p>
+          <p class="font-heading text-lg text-accent">{{ summary().online }}</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase text-muted">{{ t('offline') }}</p>
+          <p class="font-heading text-lg text-danger">{{ summary().offline }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div #scrollArea class="mt-1 min-h-0 flex-1 overflow-y-auto pb-2 scroll-area">
+    <div
+      *ngIf="loading()"
+      class="mb-4 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4 text-sm text-muted"
+    >
+      {{ t('loading') }}
+    </div>
+
+    <ul *ngIf="!loading()" class="mx-auto w-full max-w-[520px] space-y-3 px-3">
+      <li
+        *ngFor="let device of filteredDevices()"
+        class="card-gradient rounded-lg border border-[var(--card-border)] p-4 shadow-sm"
+      >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
@@ -181,40 +188,40 @@
               {{ t('diagHttp') }}
             </span>
           </div>
-          <div class="mt-2 flex gap-2">
-            <button
-              type="button"
-              class="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
-              (click)="openEditDialog(device)"
-            >
-              {{ t('edit') }}
-            </button>
-            <button
-              type="button"
-              class="rounded-md border border-danger/40 px-2 py-1 text-xs font-semibold text-danger"
-              (click)="deleteDevice(device)"
-            >
-              {{ t('delete') }}
-            </button>
-          </div>
         </div>
         <span
           class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold"
           [ngClass]="{
-            'bg-accent/20 text-accent': device.isReachable,
-            'bg-danger/20 text-danger': !device.isReachable
+            'bg-accent/20 text-accent': getEffectiveReachable(device),
+            'bg-danger/20 text-danger': !getEffectiveReachable(device)
           }"
         >
-          {{ device.isReachable ? t('online') : t('offline') }}
+          {{ getEffectiveReachable(device) ? t('online') : t('offline') }}
         </span>
       </div>
 
-      <div class="mt-3 flex items-center justify-between text-xs text-muted">
-        <span class="rounded-full border border-[var(--card-border)] px-2 py-1">{{ device.statusSource }}</span>
+      <div class="mt-3 flex items-center justify-between gap-2 text-xs text-muted">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            class="rounded-md border border-[var(--card-border)] px-2 py-1 text-xs font-semibold text-muted"
+            (click)="openEditDialog(device)"
+          >
+            {{ t('edit') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md border border-danger/40 px-2 py-1 text-xs font-semibold text-danger"
+            (click)="deleteDevice(device)"
+          >
+            {{ t('delete') }}
+          </button>
+        </div>
         <span>{{ device.lastCheckedAt | date: 'shortTime' }}</span>
       </div>
-    </li>
-  </ul>
+      </li>
+    </ul>
+  </div>
 
   <button
     type="button"
@@ -289,7 +296,13 @@
     <input
       id="deviceIp"
       type="text"
-      inputmode="decimal"
+      inputmode="text"
+      pattern="[0-9.]*"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      spellcheck="false"
+      enterkeyhint="done"
       class="mt-1 w-full rounded-md border border-[var(--card-border)] bg-bg px-3 py-3 font-mono text-text outline-none ring-primary transition focus:ring-2"
       [ngModel]="formState().ip"
       (ngModelChange)="onIpInput($event)"
@@ -467,15 +480,15 @@
       <li>{{ t('helpTip3') }}</li>
       <li>{{ t('helpTip4') }}</li>
       <li>{{ t('helpTip5') }}</li>
+      <li>{{ t('helpTip6') }}</li>
     </ul>
 
     <div class="mt-4 rounded-md border border-[var(--card-border)] bg-bg/40 p-3 text-sm">
       <p class="text-muted">{{ t('probeHealthEndpoint') }}</p>
       <a
-        [href]="probeHealthUrl()"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="break-all font-mono text-primary underline decoration-primary/60"
+        routerLink="/health"
+        class="mt-2 inline-flex items-center gap-2 rounded-md border border-[var(--card-border)] px-3 py-2 text-xs font-semibold text-primary"
+        (click)="closeHelpDialog()"
       >
         {{ probeHealthUrl() }}
       </a>

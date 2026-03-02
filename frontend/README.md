@@ -34,44 +34,41 @@ npm run build
 - Design tokens integrated from project branding spec.
 - Dashboard starter view:
   - 2-second splash screen
-  - IndexedDB-backed seeded device list (2 default entries)
+  - IndexedDB-backed seeded device list (2 default entries) with in-memory fallback
   - status source chip (`PING`, `HTTP`, `PING+HTTP`, `UNKNOWN`)
-  - probe API connection indicator (`Connected` / `Unavailable`)
-  - status legend for source mapping (`PING+HTTP`, `PING`, `HTTP`, `UNKNOWN`)
-  - help dialog (`?`) with status semantics and troubleshooting tips
+  - probe API connection indicator (`Connected` / `Waiting` / `Unavailable`) with spinner
+  - status legend badges (clickable filters)
+  - help dialog (`?`) with status semantics, troubleshooting tips, and health link
   - manual refresh button for immediate probe sync
   - configurable probe endpoint:
     - host (default `192.168.16.30`)
     - protocol (`http`/`https`)
     - optional port
     - optional API token (Bearer)
+    - auto port inference when host/protocol match current app URL
   - startup toast with initial host reachability
   - host test feedback toast after settings save
+  - toast warning when local storage is blocked
   - language switch (`DE`/`EN`) with dynamic text updates
   - floating action button
   - add/edit-device bottom sheet with:
     - name input
     - type selector (`PS5`, `PC`, `TV`) with icons
-    - free IP input (dots are entered manually)
+    - free IP input with iOS-friendly punctuation handling
     - per-device HTTP probe settings (`off/http/https` + optional port)
     - validation and inline error feedback
   - delete action with confirmation
   - stateless probe flow:
-    - device list is persistent only in IndexedDB (browser)
+    - device list is persistent in IndexedDB (browser), fallback to memory when blocked
     - refresh sends current local devices to `POST /api/status/check-now`
   - device type icons in list cards (`PS5`, `PC`, `TV`)
   - verified Docker probe flow for per-device `probeProtocol` + `probePort`
+  - health page (`/health`) with back button, open/copy endpoint
+  - scrollable device list region (fixed header/summary)
+  - consistent button styling in header controls
 
   - PWA baseline:
     - `manifest.webmanifest`
     - Angular service worker (`ngsw-config.json`)
     - Console Badge icon assets (`public/icons/*.svg`)
     - PNG exports (`icon-180/192/512.png`, `favicon-16/32.png`)
-
-## Next implementation steps
-1. Add tests for input formatting and IndexedDB service behavior.
-  - done: unit tests for `formatIpv4Input` and `DeviceStoreService` core flows
-2. Add validation hints for probe protocol/port combinations.
-  - done: preview URL + protocol default-port hint + host/port validation
-3. Add optional link to Raspberry Pi probe health endpoint in help dialog.
-  - done: clickable `.../api/health` link based on current probe settings

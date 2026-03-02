@@ -1,10 +1,12 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 import { CreateDeviceInput, Device } from '../../models/device';
 import { AppConfigService } from '../../services/app-config.service';
 import { DeviceStoreService } from '../../services/device-store.service';
+import { safeGetItem, safeSetItem } from '../../utils/storage';
 
 type Locale = 'de' | 'en';
 
@@ -63,6 +65,7 @@ const TEXTS = {
     helpTip3: 'Ensure target IP exists in the same network segment.',
     helpTip4: 'Some devices block ping or HTTP when sleeping.',
     helpTip5: 'For HTTPS, verify the endpoint and port are correct.',
+    helpTip6: 'For use outside the LAN, host the app on a reachable URL or use VPN.',
     probeHealthEndpoint: 'Probe health endpoint',
     diagPing: 'Ping',
     diagHttp: 'HTTP',
@@ -86,7 +89,9 @@ const TEXTS = {
     errorDuplicateIp: 'A device with this IP already exists.',
     errorProbeProtocol: 'Probe protocol must be http or https.',
     errorProbePort: 'Probe port must be between 1 and 65535.',
-    errorDeviceMissing: 'Device not found.'
+    errorDeviceMissing: 'Device not found.',
+    storageUnavailable: 'Settings saved for this session only (storage blocked by the browser).',
+    storageMemoryFallback: 'Local storage is blocked. Devices are kept only for this session.'
   },
   de: {
     title: 'IP Watch',
@@ -140,6 +145,7 @@ const TEXTS = {
     helpTip3: 'Stelle sicher, dass die Ziel-IP im gleichen Netzwerksegment liegt.',
     helpTip4: 'Manche Geräte blockieren Ping oder HTTP im Standby.',
     helpTip5: 'Bei HTTPS Endpunkt und Port prüfen.',
+    helpTip6: 'Außerhalb des LAN brauchst du eine erreichbare URL oder VPN.',
     probeHealthEndpoint: 'Probe-Health-Endpunkt',
     diagPing: 'Ping',
     diagHttp: 'HTTP',
@@ -163,7 +169,9 @@ const TEXTS = {
     errorDuplicateIp: 'Ein Gerät mit dieser IP existiert bereits.',
     errorProbeProtocol: 'Probe-Protokoll muss http oder https sein.',
     errorProbePort: 'Probe-Port muss zwischen 1 und 65535 liegen.',
-    errorDeviceMissing: 'Gerät nicht gefunden.'
+    errorDeviceMissing: 'Gerät nicht gefunden.',
+    storageUnavailable: 'Einstellungen nur für diese Sitzung gespeichert (Browser blockiert Speicher).',
+    storageMemoryFallback: 'Lokaler Speicher blockiert. Geräte bleiben nur für diese Sitzung.'
   }
 } as const;
 
@@ -173,7 +181,7 @@ const TEXTS = {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, DatePipe, FormsModule],
+  imports: [CommonModule, DatePipe, FormsModule, RouterLink],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.css'
 })
@@ -225,31 +233,60 @@ export class DashboardComponent implements OnDestroy {
     const host = this.settingsHostState().trim() || '192.168.16.30';
     const protocol = this.settingsProtocolState();
     const port = this.settingsPortState().trim();
-    const portPart = port ? `:${port}` : '';
+    const portPart = port ? `:${port}` : this.resolvePreviewPort(host, protocol);
     return `${protocol}://${host}${portPart}`;
   });
 
   readonly splashVisible = computed(() => this.splashVisibleState());
   readonly devices = this.store.devices;
-  readonly summary = computed(() => this.store.getSummary());
+  private readonly statusFiltersState = signal<Set<Device['statusSource']>>(
+    new Set<Device['statusSource']>(['PING+HTTP', 'PING', 'HTTP', 'UNKNOWN'])
+  );
   readonly statusLegend = [
-    { label: 'PING+HTTP', colorClass: 'bg-accent' },
-    { label: 'PING', colorClass: 'bg-primary' },
-    { label: 'HTTP', colorClass: 'bg-warning' },
-    { label: 'UNKNOWN', colorClass: 'bg-danger' }
+    { key: 'PING+HTTP', label: 'PING+HTTP', colorClass: 'bg-accent' },
+    { key: 'PING', label: 'PING', colorClass: 'bg-primary' },
+    { key: 'HTTP', label: 'HTTP', colorClass: 'bg-warning' },
+    { key: 'UNKNOWN', label: 'UNKNOWN', colorClass: 'bg-danger' }
   ] as const;
+  readonly activeStatusFilters = computed(() => this.statusFiltersState());
+  readonly filteredDevices = computed(() => {
+    const devices = this.devices();
+    const active = this.activeStatusFilters();
+    if (active.size === this.statusLegend.length) {
+      return devices;
+    }
+    return devices.filter((device) => active.has(this.getEffectiveStatusSource(device)));
+  });
+  readonly summary = computed(() => {
+    const items = this.filteredDevices();
+    const total = items.length;
+    if (this.probeConnection() !== 'connected') {
+      return { total, online: 0, offline: total };
+    }
+    const online = items.filter((d) => d.isReachable).length;
+    return { total, online, offline: total - online };
+  });
 
   constructor() {
+    const skipSplash = typeof window !== 'undefined' && window.history?.state?.skipSplash === true;
     this.store
       .initialize()
       .then(() => {
         this.showStartupProbeToast();
         this.startProbePolling();
+        if (this.store.storageMode() === 'memory') {
+          this.showToast(this.t('storageMemoryFallback'), 'error');
+        }
       })
       .catch(() => {
         this.submitErrorState.set(this.t('errorInitDb'));
       });
-    setTimeout(() => this.splashVisibleState.set(false), 2000);
+    if (skipSplash) {
+      this.splashVisibleState.set(false);
+    } else {
+      setTimeout(() => this.splashVisibleState.set(false), 2000);
+    }
+
   }
 
   ngOnDestroy(): void {
@@ -263,7 +300,7 @@ export class DashboardComponent implements OnDestroy {
 
   setLocale(locale: Locale): void {
     this.localeState.set(locale);
-    localStorage.setItem(LOCALE_KEY, locale);
+    safeSetItem(LOCALE_KEY, locale);
   }
 
   t(key: keyof (typeof TEXTS)['en'], params?: Record<string, string>): string {
@@ -289,6 +326,9 @@ export class DashboardComponent implements OnDestroy {
   }
 
   isPingSuccess(device: Device): boolean {
+    if (this.probeConnection() !== 'connected') {
+      return false;
+    }
     if (device.pingReachable === true) {
       return true;
     }
@@ -296,10 +336,27 @@ export class DashboardComponent implements OnDestroy {
   }
 
   isHttpSuccess(device: Device): boolean {
+    if (this.probeConnection() !== 'connected') {
+      return false;
+    }
     if (device.httpReachable === true) {
       return true;
     }
     return device.statusSource === 'HTTP' || device.statusSource === 'PING+HTTP';
+  }
+
+  getEffectiveStatusSource(device: Device): Device['statusSource'] {
+    if (this.probeConnection() !== 'connected') {
+      return 'UNKNOWN';
+    }
+    return device.statusSource;
+  }
+
+  getEffectiveReachable(device: Device): boolean {
+    if (this.probeConnection() !== 'connected') {
+      return false;
+    }
+    return device.isReachable;
   }
 
   openCreateDialog(): void {
@@ -351,8 +408,38 @@ export class DashboardComponent implements OnDestroy {
     this.helpDialogState.set(false);
   }
 
+  toggleStatusFilter(status: Device['statusSource']): void {
+    const current = this.activeStatusFilters();
+    const allKeys = this.statusLegend.map((item) => item.key);
+    const allActive = current.size === allKeys.length;
+    const next = new Set<Device['statusSource']>(current);
+
+    if (allActive) {
+      next.clear();
+      next.add(status);
+    } else if (next.has(status)) {
+      if (next.size === 1) {
+        allKeys.forEach((key) => next.add(key));
+      } else {
+        next.delete(status);
+      }
+    } else {
+      next.add(status);
+      if (next.size === 0) {
+        allKeys.forEach((key) => next.add(key));
+      }
+    }
+
+    this.statusFiltersState.set(next);
+  }
+
+
   onSettingsHostChange(value: string): void {
-    this.settingsHostState.set(value);
+    const normalized = value
+      .normalize('NFKC')
+      .replace(/[。．｡,]/g, '.')
+      .replace(/\s+/g, '');
+    this.settingsHostState.set(normalized);
   }
 
   onSettingsProtocolChange(value: 'http' | 'https'): void {
@@ -375,16 +462,21 @@ export class DashboardComponent implements OnDestroy {
       return;
     }
 
-    this.appConfig.setProbeConfig({
+    const persisted = this.appConfig.setProbeConfig({
       host: this.settingsHostState(),
       protocol: this.settingsProtocolState(),
       port: this.settingsPortState(),
       apiToken: this.settingsTokenState()
     });
+    this.store.setProbeConnectionPending();
     this.closeSettingsDialog();
     await this.store.syncStatusesFromProbe();
     const savedBaseUrl = this.probeBaseUrl();
 
+    if (!persisted || !this.appConfig.isStorageAvailable()) {
+      this.showToast(this.t('storageUnavailable'), 'error');
+      return;
+    }
     if (this.probeConnection() === 'connected') {
       this.showToast(this.t('hostReachable', { host: savedBaseUrl }), 'success');
       return;
@@ -394,6 +486,7 @@ export class DashboardComponent implements OnDestroy {
 
   async refreshStatuses(): Promise<void> {
     this.refreshingState.set(true);
+    this.store.setProbeConnectionPending();
     await this.store.syncStatusesFromProbe();
     this.refreshingState.set(false);
 
@@ -538,7 +631,7 @@ export class DashboardComponent implements OnDestroy {
   }
 
   private loadLocale(): Locale {
-    const raw = localStorage.getItem(LOCALE_KEY);
+    const raw = safeGetItem(LOCALE_KEY);
     return raw === 'de' ? 'de' : 'en';
   }
 
@@ -552,6 +645,22 @@ export class DashboardComponent implements OnDestroy {
       'Device not found.': 'errorDeviceMissing',
       'Missing device id for edit.': 'errorMissingEditId'
     };
-    return this.t(map[message] ?? 'errorCreateDevice');
+    if (map[message]) {
+      return this.t(map[message]);
+    }
+    return message || this.t('errorCreateDevice');
+  }
+
+  private resolvePreviewPort(host: string, protocol: string): string {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    const currentHost = window.location.hostname;
+    const currentProtocol = window.location.protocol.replace(':', '');
+    const currentPort = window.location.port;
+    if (host === currentHost && protocol === currentProtocol && currentPort) {
+      return `:${currentPort}`;
+    }
+    return '';
   }
 }

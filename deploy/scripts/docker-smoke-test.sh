@@ -14,10 +14,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "[smoke] Building frontend..."
-cd "$ROOT_DIR/frontend"
-npm run build
-
 echo "[smoke] Starting docker stack on WEB_PORT=${WEB_PORT}..."
 cd "$ROOT_DIR"
 WEB_PORT="${WEB_PORT}" docker compose up -d --build

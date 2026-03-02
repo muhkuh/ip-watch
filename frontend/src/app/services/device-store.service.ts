@@ -3,6 +3,8 @@ import { Injectable, computed, signal } from '@angular/core';
 import { CreateDeviceInput, Device } from '../models/device';
 import { ProbeStatus } from '../models/probe';
 import { ProbeApiService } from './probe-api.service';
+import { safeGetItem, safeSetItem } from '../utils/storage';
+import { generateId } from '../utils/uuid';
 
 const DB_NAME = 'ip-watch-db';
 const DB_VERSION = 1;
@@ -19,21 +21,39 @@ export class DeviceStoreService {
   private readonly devicesState = signal<Device[]>([]);
   private readonly loadingState = signal(true);
   private readonly probeConnectionState = signal<'idle' | 'connected' | 'unavailable'>('idle');
+  private readonly storageModeState = signal<'indexeddb' | 'memory'>('indexeddb');
   private db: IDBDatabase | null = null;
+  private useMemoryStore = false;
+  private memoryDevices: Device[] = [];
 
   readonly devices = computed(() => this.devicesState());
   readonly loading = computed(() => this.loadingState());
   readonly probeConnection = computed(() => this.probeConnectionState());
+  readonly storageMode = computed(() => this.storageModeState());
 
   /**
    * Initializes IndexedDB connection and loads seeded/local device data.
    */
   async initialize(): Promise<void> {
-    this.db = await this.openDatabase();
-    await this.ensureSeedData();
-    this.devicesState.set(await this.readAllDevices());
-    await this.syncStatusesFromProbe();
-    this.loadingState.set(false);
+    try {
+      this.db = await this.openDatabase();
+    } catch {
+      this.useMemoryStore = true;
+      this.storageModeState.set('memory');
+    }
+
+    try {
+      await this.ensureSeedData();
+      this.devicesState.set(await this.readAllDevices());
+    } catch {
+      this.devicesState.set([]);
+    } finally {
+      this.loadingState.set(false);
+      this.setProbeConnectionPending();
+      this.syncStatusesFromProbe().catch(() => {
+        this.probeConnectionState.set('unavailable');
+      });
+    }
   }
 
   /**
@@ -43,7 +63,7 @@ export class DeviceStoreService {
     const normalized = this.validateInput(input);
 
     const item: Device = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: normalized.name,
       type: normalized.type,
       ip: normalized.ip,
@@ -104,6 +124,7 @@ export class DeviceStoreService {
    * Pulls latest statuses from the probe API and merges by IP.
    */
   async syncStatusesFromProbe(): Promise<void> {
+    this.setProbeConnectionPending();
     try {
       const statusRequest = this.devicesState().map((device) => ({
         name: device.name,
@@ -159,9 +180,21 @@ export class DeviceStoreService {
     }
   }
 
+  setProbeConnectionPending(): void {
+    this.probeConnectionState.set('idle');
+  }
+
   private openDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
+      let settled = false;
+      const timeoutHandle = window.setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(new Error('IndexedDB open timed out.'));
+      }, 1500);
 
       request.onupgradeneeded = () => {
         const db = request.result;
@@ -170,50 +203,103 @@ export class DeviceStoreService {
         }
       };
 
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed.'));
+      request.onsuccess = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutHandle);
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutHandle);
+        reject(request.error ?? new Error('IndexedDB open failed.'));
+      };
+      request.onblocked = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutHandle);
+        reject(new Error('IndexedDB open blocked.'));
+      };
     });
   }
 
   private async ensureSeedData(): Promise<void> {
-    if (localStorage.getItem(SEEDED_FLAG) === '1') {
+    if (safeGetItem(SEEDED_FLAG) === '1') {
       return;
     }
 
     const seed: Device[] = [
       {
-        id: crypto.randomUUID(),
-        name: 'Living Room PS5',
+        id: generateId(),
+        name: 'PS5-Leo',
         type: 'PS5',
-        ip: '192.168.0.15',
+        ip: '192.168.16.130',
         probeProtocol: null,
         probePort: null,
-        statusSource: 'PING+HTTP',
-        isReachable: true,
+        statusSource: 'UNKNOWN',
+        isReachable: false,
         lastCheckedAt: new Date().toISOString(),
-        pingReachable: true,
-        httpReachable: true
+        pingReachable: null,
+        httpReachable: null
       },
       {
-        id: crypto.randomUUID(),
-        name: 'Office PC',
-        type: 'PC',
-        ip: '192.168.0.22',
+        id: generateId(),
+        name: 'PS5-Ben',
+        type: 'PS5',
+        ip: '192.168.16.39',
         probeProtocol: null,
         probePort: null,
-        statusSource: 'PING',
-        isReachable: true,
+        statusSource: 'UNKNOWN',
+        isReachable: false,
         lastCheckedAt: new Date().toISOString(),
-        pingReachable: true,
+        pingReachable: null,
+        httpReachable: null
+      },
+      {
+        id: generateId(),
+        name: 'PS5-Frank',
+        type: 'PS5',
+        ip: '192.168.16.85',
+        probeProtocol: null,
+        probePort: null,
+        statusSource: 'UNKNOWN',
+        isReachable: false,
+        lastCheckedAt: new Date().toISOString(),
+        pingReachable: null,
+        httpReachable: null
+      },
+      {
+        id: generateId(),
+        name: 'PC-Ben',
+        type: 'PC',
+        ip: '192.168.16.138',
+        probeProtocol: null,
+        probePort: null,
+        statusSource: 'UNKNOWN',
+        isReachable: false,
+        lastCheckedAt: new Date().toISOString(),
+        pingReachable: null,
         httpReachable: null
       }
     ];
 
     await Promise.all(seed.map((entry) => this.putDevice(entry)));
-    localStorage.setItem(SEEDED_FLAG, '1');
+    safeSetItem(SEEDED_FLAG, '1');
   }
 
   private readAllDevices(): Promise<Device[]> {
+    if (this.useMemoryStore) {
+      const items = [...this.memoryDevices].sort((a, b) => b.lastCheckedAt.localeCompare(a.lastCheckedAt));
+      return Promise.resolve(items);
+    }
+
     const db = this.getDatabase();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(DEVICES_STORE, 'readonly');
@@ -229,6 +315,16 @@ export class DeviceStoreService {
   }
 
   private putDevice(device: Device): Promise<void> {
+    if (this.useMemoryStore) {
+      const index = this.memoryDevices.findIndex((entry) => entry.id === device.id);
+      if (index >= 0) {
+        this.memoryDevices[index] = device;
+      } else {
+        this.memoryDevices.push(device);
+      }
+      return Promise.resolve();
+    }
+
     const db = this.getDatabase();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(DEVICES_STORE, 'readwrite');
@@ -240,6 +336,11 @@ export class DeviceStoreService {
   }
 
   private deleteDeviceFromDb(deviceId: string): Promise<void> {
+    if (this.useMemoryStore) {
+      this.memoryDevices = this.memoryDevices.filter((entry) => entry.id !== deviceId);
+      return Promise.resolve();
+    }
+
     const db = this.getDatabase();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(DEVICES_STORE, 'readwrite');
@@ -251,6 +352,9 @@ export class DeviceStoreService {
   }
 
   private getDatabase(): IDBDatabase {
+    if (this.useMemoryStore) {
+      throw new Error('IndexedDB is unavailable.');
+    }
     if (!this.db) {
       throw new Error('Device store has not been initialized.');
     }

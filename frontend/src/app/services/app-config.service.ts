@@ -1,5 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 
+import { isLocalStorageAvailable, safeGetItem, safeSetItem } from '../utils/storage';
+
 const PROBE_HOST_KEY = 'ip-watch-probe-host-v1';
 const PROBE_PROTOCOL_KEY = 'ip-watch-probe-protocol-v1';
 const PROBE_PORT_KEY = 'ip-watch-probe-port-v1';
@@ -34,7 +36,7 @@ export class AppConfigService {
   /**
    * Updates probe connectivity settings and persists them in browser storage.
    */
-  setProbeConfig(value: ProbeConfigInput): void {
+  setProbeConfig(value: ProbeConfigInput): boolean {
     const host = value.host.trim() || DEFAULT_PROBE_HOST;
     const protocol = value.protocol === 'https' ? 'https' : 'http';
     const port = this.normalizePort(value.port);
@@ -45,28 +47,33 @@ export class AppConfigService {
     this.probePortState.set(port);
     this.probeApiTokenState.set(apiToken);
 
-    localStorage.setItem(PROBE_HOST_KEY, host);
-    localStorage.setItem(PROBE_PROTOCOL_KEY, protocol);
-    localStorage.setItem(PROBE_PORT_KEY, port);
-    localStorage.setItem(PROBE_API_TOKEN_KEY, apiToken);
+    const hostOk = safeSetItem(PROBE_HOST_KEY, host);
+    const protocolOk = safeSetItem(PROBE_PROTOCOL_KEY, protocol);
+    const portOk = safeSetItem(PROBE_PORT_KEY, port);
+    const tokenOk = safeSetItem(PROBE_API_TOKEN_KEY, apiToken);
+    return hostOk && protocolOk && portOk && tokenOk;
   }
 
   private loadProbeHost(): string {
-    const fromStorage = localStorage.getItem(PROBE_HOST_KEY);
+    const fromStorage = safeGetItem(PROBE_HOST_KEY);
     return fromStorage?.trim() || DEFAULT_PROBE_HOST;
   }
 
   private loadProbeProtocol(): 'http' | 'https' {
-    const fromStorage = localStorage.getItem(PROBE_PROTOCOL_KEY);
+    const fromStorage = safeGetItem(PROBE_PROTOCOL_KEY);
     return fromStorage === 'https' ? 'https' : DEFAULT_PROBE_PROTOCOL;
   }
 
   private loadProbePort(): string {
-    return this.normalizePort(localStorage.getItem(PROBE_PORT_KEY) ?? DEFAULT_PROBE_PORT);
+    return this.normalizePort(safeGetItem(PROBE_PORT_KEY) ?? DEFAULT_PROBE_PORT);
   }
 
   private loadProbeApiToken(): string {
-    return (localStorage.getItem(PROBE_API_TOKEN_KEY) ?? '').trim();
+    return (safeGetItem(PROBE_API_TOKEN_KEY) ?? '').trim();
+  }
+
+  isStorageAvailable(): boolean {
+    return isLocalStorageAvailable();
   }
 
   private normalizePort(value: string): string {
@@ -82,7 +89,23 @@ export class AppConfigService {
     const host = this.probeHostState();
     const protocol = this.probeProtocolState();
     const port = this.probePortState();
-    const portPart = port ? `:${port}` : '';
+    const portPart = this.resolvePortForHost(host, protocol, port);
     return `${protocol}://${host}${portPart}`;
+  }
+
+  private resolvePortForHost(host: string, protocol: string, port: string): string {
+    if (port) {
+      return `:${port}`;
+    }
+    if (typeof window === 'undefined') {
+      return '';
+    }
+    const currentHost = window.location.hostname;
+    const currentProtocol = window.location.protocol.replace(':', '');
+    const currentPort = window.location.port;
+    if (host === currentHost && protocol === currentProtocol && currentPort) {
+      return `:${currentPort}`;
+    }
+    return '';
   }
 }
