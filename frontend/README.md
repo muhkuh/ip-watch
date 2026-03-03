@@ -18,7 +18,7 @@ npm run build
 
 ## Backend and Host Deployment
 - Probe host service source: `/probe-host`
-- Deployment guide (Docker + native Raspberry Pi): `/docs/deployment/README.md`
+- Deployment guide (Docker + native Raspberry Pi): `/docs/deployment/_deployment_base.md`
 - Deploy scripts:
   - `/deploy/scripts/docker-test-up.sh`
   - `/deploy/scripts/docker-test-down.sh`

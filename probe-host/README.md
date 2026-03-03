@@ -17,7 +17,7 @@ npm install
 node src/server.js
 ```
 
-The service starts on `0.0.0.0:3001` by default.
+By default, the service binds to `0.0.0.0:3001` and is typically reachable locally via `http://localhost:3001`.
 
 ## Environment variables
 - `HOST` (default: `0.0.0.0`)

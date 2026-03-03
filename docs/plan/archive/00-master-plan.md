@@ -51,11 +51,11 @@ Build an iPhone-focused installable PWA for local device tracking by IP. The Ras
    - Frontend displays status and source type per device.
 
 ## Work Breakdown
-- See [01-architecture-and-data-plan.md](/mnt/d/_workspace/ip-watch/docs/plan/01-architecture-and-data-plan.md)
-- See [02-ui-ux-and-pwa-plan.md](/mnt/d/_workspace/ip-watch/docs/plan/02-ui-ux-and-pwa-plan.md)
-- See [03-delivery-and-deployment-plan.md](/mnt/d/_workspace/ip-watch/docs/plan/03-delivery-and-deployment-plan.md)
-- See [04-branding-spec.md](/mnt/d/_workspace/ip-watch/docs/plan/04-branding-spec.md)
-- See [05-design-tokens.css](/mnt/d/_workspace/ip-watch/docs/plan/05-design-tokens.css)
+- See [01-architecture-and-data-plan.md](./01-architecture-and-data-plan.md)
+- See [02-ui-ux-and-pwa-plan.md](./02-ui-ux-and-pwa-plan.md)
+- See [03-delivery-and-deployment-plan.md](./03-delivery-and-deployment-plan.md)
+- See [04-branding-spec.md](./04-branding-spec.md)
+- See [05-design-tokens.css](./05-design-tokens.css)
 
 ## Logo Direction Proposals
 1. **Radar Dot**
