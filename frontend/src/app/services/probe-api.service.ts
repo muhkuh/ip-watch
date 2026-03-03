@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import { ProbeStatus } from '../models/probe';
 import { CreateDeviceInput } from '../models/device';
 import { AppConfigService } from './app-config.service';
 
 type UnknownRecord = Record<string, unknown>;
+const CHECK_STATUS_TIMEOUT_MS = 4000;
 
 /**
  * Handles communication with the Raspberry Pi probe API and normalizes status payloads.
@@ -23,7 +24,9 @@ export class ProbeApiService {
    */
   async checkStatuses(devices: CreateDeviceInput[]): Promise<ProbeStatus[]> {
     const payload = await firstValueFrom(
-      this.http.post<unknown>(this.endpoint('/status/check-now'), { devices }, this.requestOptions())
+      this.http
+        .post<unknown>(this.endpoint('/status/check-now'), { devices }, this.requestOptions())
+        .pipe(timeout(CHECK_STATUS_TIMEOUT_MS))
     );
     return this.normalizeStatusPayload(payload);
   }

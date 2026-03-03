@@ -228,6 +228,46 @@ Or use update script:
 sudo ./deploy/scripts/pi-native-update.sh
 ```
 
+### Troubleshooting: Native Update Script
+
+The update script requires `root` and runs `npm` as user `ipwatch`:
+- `sudo -u ipwatch npm install --omit=dev`
+- `sudo -u ipwatch npm install`
+- `sudo -u ipwatch npm run build`
+
+If file ownership is wrong (for example changed to another user), update may fail with `EACCES`.
+
+Common issues and fixes:
+
+1. `sudo: ./deploy/scripts/pi-native-update.sh: command not found`
+```bash
+cd /opt/ip-watch
+ls -l ./deploy/scripts/pi-native-update.sh
+sudo bash ./deploy/scripts/pi-native-update.sh
+```
+
+2. `bash: ./deploy/scripts/pi-native-update.sh: Permission denied`
+```bash
+cd /opt/ip-watch
+chmod +x ./deploy/scripts/pi-native-update.sh
+sudo ./deploy/scripts/pi-native-update.sh
+```
+
+3. `npm ERR! EACCES` during update (for example on `package-lock.json` or `node_modules`)
+```bash
+cd /opt/ip-watch
+sudo chown -R ipwatch:ipwatch /opt/ip-watch
+sudo chmod -R u+rwX /opt/ip-watch
+sudo -u ipwatch mkdir -p /opt/ip-watch/.npm
+sudo ./deploy/scripts/pi-native-update.sh
+```
+
+4. Script says `Please run as root (sudo).`
+```bash
+cd /opt/ip-watch
+sudo ./deploy/scripts/pi-native-update.sh
+```
+
 ---
 
 ## Backup and Restore (Native)
