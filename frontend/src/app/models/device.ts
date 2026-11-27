@@ -13,6 +13,9 @@ export interface Device {
   lastCheckedAt: string;
   pingReachable?: boolean | null;
   httpReachable?: boolean | null;
+  latencyMs?: number | null;
+  latencyHistory?: { at: string; latencyMs: number | null; responded: boolean | null }[];
+  fritzMac?: string | null;
 }
 
 /**
@@ -24,4 +27,5 @@ export interface CreateDeviceInput {
   ip: string;
   probeProtocol: 'http' | 'https' | null;
   probePort: number | null;
+  fritzMac?: string | null;
 }

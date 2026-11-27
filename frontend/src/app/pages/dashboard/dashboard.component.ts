@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { CreateDeviceInput, Device } from '../../models/device';
 import { AppConfigService } from '../../services/app-config.service';
 import { DeviceStoreService } from '../../services/device-store.service';
+import { NetworkApiService, DiscoveredHost } from '../../services/network-api.service';
 import { safeGetItem, safeSetItem } from '../../utils/storage';
 
 type Locale = 'de' | 'en';
@@ -17,6 +18,7 @@ const TEXTS = {
     title: 'IP Watch',
     subtitle: 'PS5, PC and TV reachability overview',
     refresh: 'Refresh',
+    network: 'Network',
     refreshing: 'Refreshing...',
     refreshingOverlay: 'Refreshing statuses...',
     openHelp: 'Open help',
@@ -97,6 +99,7 @@ const TEXTS = {
     title: 'IP Watch',
     subtitle: 'PS5-, PC- und TV-Erreichbarkeitsübersicht',
     refresh: 'Aktualisieren',
+    network: 'Netzwerk',
     refreshing: 'Aktualisiere...',
     refreshingOverlay: 'Status wird aktualisiert...',
     openHelp: 'Hilfe öffnen',
@@ -188,6 +191,9 @@ const TEXTS = {
 export class DashboardComponent implements OnDestroy {
   private readonly appConfig = inject(AppConfigService);
   private readonly store = inject(DeviceStoreService);
+  private readonly networkApi = inject(NetworkApiService);
+  readonly discoveredHosts = signal<DiscoveredHost[]>([]);
+  readonly discoveryError = signal(false);
   private readonly splashVisibleState = signal(true);
   private readonly createDialogState = signal(false);
   private readonly settingsDialogState = signal(false);
@@ -359,12 +365,43 @@ export class DashboardComponent implements OnDestroy {
     return device.isReachable;
   }
 
+  pingReplies(device: Device): number {
+    return (device.latencyHistory ?? []).filter((sample) => sample.responded === true).length;
+  }
+
+  pingSamples(device: Device): number {
+    return (device.latencyHistory ?? []).filter((sample) => sample.responded !== null).length;
+  }
+
   openCreateDialog(): void {
     this.dialogModeState.set('create');
     this.editingDeviceIdState.set(null);
     this.formState.set({ name: '', type: 'PS5', ip: '', probeProtocol: null, probePort: null });
     this.createDialogState.set(true);
     this.submitErrorState.set('');
+    this.loadDiscoveredHosts();
+  }
+
+  private loadDiscoveredHosts(): void {
+    this.discoveredHosts.set([]);
+    this.discoveryError.set(false);
+    this.networkApi.getDevices().subscribe({
+      next: (snapshot) => this.discoveredHosts.set(snapshot.hosts ?? []),
+      error: () => this.discoveryError.set(true)
+    });
+  }
+
+  selectDiscoveredHost(value: string): void {
+    const [hostIndex, addressIndex] = value.split(':').map(Number);
+    const host = this.discoveredHosts()[hostIndex];
+    const address = host?.addresses[addressIndex];
+    if (!address || address.includes(':')) return;
+    this.formState.update((current) => ({
+      ...current,
+      ip: address,
+      fritzMac: host.macAddress,
+      name: current.name || (host.hostname ?? '').slice(0, 40)
+    }));
   }
 
   openEditDialog(device: Device): void {
@@ -375,10 +412,12 @@ export class DashboardComponent implements OnDestroy {
       type: device.type,
       ip: device.ip,
       probeProtocol: device.probeProtocol,
-      probePort: device.probePort
+      probePort: device.probePort,
+      fritzMac: device.fritzMac ?? null
     });
     this.createDialogState.set(true);
     this.submitErrorState.set('');
+    this.loadDiscoveredHosts();
   }
 
   closeCreateDialog(): void {
@@ -517,7 +556,7 @@ export class DashboardComponent implements OnDestroy {
       .replace(/\.{2,}/g, '.')
       .replace(/^\./, '')
       .slice(0, 15);
-    this.formState.update((current) => ({ ...current, ip: sanitized }));
+    this.formState.update((current) => ({ ...current, ip: sanitized, fritzMac: null }));
   }
 
   onProbeProtocolChange(value: '' | 'http' | 'https'): void {

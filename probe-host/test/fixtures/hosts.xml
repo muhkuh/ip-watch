@@ -1,0 +1,23 @@
+<List>
+  <Item>
+    <HostName>Fixture &amp; Laptop</HostName>
+    <MACAddress>02:00:00:00:00:01</MACAddress>
+    <IPAddress>192.0.2.10</IPAddress>
+    <Active>1</Active>
+    <X_AVM-DE_URL>https://example.test/</X_AVM-DE_URL>
+    <X_AVM-DE_URLParameters>token=fixture-mesh-login-value</X_AVM-DE_URLParameters>
+  </Item>
+  <Item>
+    <MACAddress>02:00:00:00:00:01</MACAddress>
+    <IPAddress>2001:db8::10</IPAddress>
+  </Item>
+  <Item>
+    <HostName>Fixture printer</HostName>
+    <IPAddress>192.0.2.20</IPAddress>
+    <Active>0</Active>
+  </Item>
+  <Item>
+    <HostName>Fixture printer</HostName>
+    <IPAddress>192.0.2.21</IPAddress>
+  </Item>
+</List>

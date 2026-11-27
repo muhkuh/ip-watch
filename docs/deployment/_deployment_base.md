@@ -75,3 +75,21 @@ Replace before adoption:
 - `<SERVICE_NAME>`
 - `<DEPLOY_HOST>`
 - `<ARTIFACT_VERSION>`
+
+## 10. FRITZ! integration operations
+
+Enable the collector only after reviewing the target runtime, local HTTPS access to the router, the web origin and the owner validation procedure. The collector starts disabled. Use the existing service environment configuration to set `FRITZ_ENABLED=true`, `FRITZ_URL` to the router's verified TR-064 HTTPS origin, `FRITZ_USERNAME`, `FRITZ_PASSWORD`, and a non-empty `PROBE_API_TOKEN`. Configure the owner browser with that IP Watch token through the existing probe settings. Keep router credentials in a protected environment file and use a local FRITZ! account with the minimum rights supported for the required reads.
+
+When introducing `PROBE_API_TOKEN` on a previously unauthenticated installation, coordinate the change with existing probe clients. The same setting also requires authentication for legacy probe requests. Keep a copy of the prior service configuration for rollback.
+
+Set `FRITZ_CA_FILE` to a trusted router CA or certificate PEM if it is absent from Node's default trust store. The certificate name or IP must match `FRITZ_URL`. Use the exact router HTTPS port confirmed by the owner. The config example contains placeholders. No certificate validation bypass is required. Confirm the browser-to-Nginx access policy separately from the router connection before exposing the inventory.
+
+`FRITZ_POLL_INTERVAL_MS` defaults to `60000` and permits `10000`–`3600000`. `FRITZ_REQUEST_TIMEOUT_MS` defaults to `5000` and permits `100`–`15000`. Each poll has a 45-second overall limit. Requests accept at most 1 MiB of XML. An indexed host listing reads up to 256 entries per poll and is marked partial if truncated. A failed poll backs off and preserves an existing observation as stale. If the required configuration is invalid, the collector issues no router requests.
+
+To roll back the feature after a separately approved rollout, set `FRITZ_ENABLED=false` and restart the probe service using the existing deployment procedure. Restore the previous artifacts if needed, keeping the original web origin to preserve client-side data. The collector has no on-disk database. Verify the legacy health, reachability, and PWA flows after rollback.
+
+## 11. Raspberry Pi release and inventory
+
+For the existing Pi, use the [release and rollback runbook](pi-release-runbook.md). The staging bundle uses Node 24 LTS and separates a candidate versioned runtime from the system Node. Inventory defaults to disabled. Enable with `INVENTORY_ENABLED=true`, an absolute `INVENTORY_DB_PATH` in the dedicated writable service directory, and the configured IP Watch bearer token. Back up the SQLite inventory independently of the browser data. A JSON export also captures the entire manual mapping.
+
+Diagnostics uses a second SQLite file, `diagnostics.sqlite`, in the same directory. It starts when inventory storage is enabled and stores selected targets, 24-hour ICMP samples and observed mesh-link changes. The monitor waits 30 seconds after each completed batch and does not overlap batches. Each target uses a current unambiguous FRITZ! address. Include the complete inventory directory in consistent backups and restore rehearsals. Test disk growth and CPU use on the actual Pi with the owner's chosen targets before increasing the target count.

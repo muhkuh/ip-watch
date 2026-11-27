@@ -1,0 +1,45 @@
+<section class="scroll-area h-full px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
+  <div class="mx-auto max-w-3xl">
+    <a routerLink="/network" class="inline-flex min-h-[var(--tap-min)] items-center text-sm font-semibold text-primary">{{ de ? 'Netzwerk' : 'Network' }}</a>
+    <h1 class="font-heading text-3xl text-text">{{ de ? 'Latenzdiagnose' : 'Latency diagnostics' }}</h1>
+    <p class="mt-2 text-sm text-muted">{{ de ? 'ICMP vom Raspberry Pi · Verlauf 24 Stunden · unbeantwortete Pakete können gefiltert werden' : 'ICMP from the Raspberry Pi · 24-hour history · unanswered packets may be filtered' }}</p>
+    @if (error()) { <p role="alert" class="mt-3 text-sm text-danger">{{ error() }}</p> }
+    <h2 class="mt-6 font-heading text-xl text-text">{{ de ? 'Überwachte Geräte' : 'Monitored devices' }}</h2>
+    @if (!targets().length) { <p class="mt-2 text-sm text-muted">{{ de ? 'Wähle ein Gerät aus der FRITZ!-Liste.' : 'Select a device from the FRITZ! list.' }}</p> }
+    @for (target of targets(); track target.mac) {
+      <div class="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+        <span class="min-w-0 flex-1 break-words text-text">{{ target.name }}</span>
+        <button type="button" (click)="showHistory(target.mac)" class="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-primary">{{ de ? 'Verlauf' : 'History' }}</button>
+        <button type="button" [disabled]="busy()" (click)="changeTarget(target.mac, false)" class="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-muted">{{ de ? 'Beenden' : 'Stop' }}</button>
+      </div>
+    }
+    @if (history(); as data) {
+      <section class="mt-5 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+        <h3 class="font-semibold text-text">{{ selected() }}</h3>
+        @let stats = summary(data);
+        <p class="mt-2 text-sm text-muted">{{ de ? 'Antworten / unbeantwortet / Messlücken' : 'Replies / unanswered / gaps' }} · {{ stats.replies }} / {{ stats.unanswered }} / {{ stats.gaps }}</p>
+        <p class="text-sm text-muted">{{ de ? 'Mittlere Laufzeit / mittlere Änderung' : 'Mean latency / mean change' }} · {{ stats.average }} / {{ stats.variation }} ms</p>
+        <p class="mt-1 text-sm text-muted">{{ de ? 'Neueste Messungen' : 'Latest samples' }} · {{ data.samples.length }}</p>
+        @for (sample of data.samples.slice(0, 40); track $index) {
+          <p class="mt-1 text-sm text-muted">{{ time(sample.time) }} · {{ sample.address || (de ? 'Adresse unbekannt' : 'Address unknown') }} · {{ sample.responded === null ? (de ? 'Messung nicht möglich' : 'Measurement unavailable') : sample.responded ? (sample.latencyMs === null ? (de ? 'Antwort ohne Zeitwert' : 'Reply without timing') : sample.latencyMs + ' ms') : (de ? 'Keine ICMP-Antwort' : 'No ICMP reply') }}</p>
+        }
+        <h3 class="mt-4 font-semibold text-text">{{ de ? 'Mesh-Änderungen im selben Zeitraum' : 'Mesh changes in the same period' }}</h3>
+        <p class="text-xs text-muted">{{ de ? 'Zeitliche Nähe belegt keine Ursache.' : 'Timing alone does not establish causation.' }}</p>
+        @for (event of data.events.slice(0, 40); track $index) {
+          <p class="mt-1 break-all text-sm text-muted">{{ time(event.time) }} · {{ event.type }} · {{ event.state }} · {{ event.from }} ↔ {{ event.to }}</p>
+        }
+      </section>
+    }
+    <h2 class="mt-6 font-heading text-xl text-text">{{ de ? 'FRITZ!-Geräte' : 'FRITZ! devices' }}</h2>
+    @for (host of hosts(); track $index) {
+      @if (host.macAddress; as mac) {
+        <div class="mt-2 flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+          <span class="min-w-0 flex-1 break-words text-sm text-text">{{ host.hostname || mac }}</span>
+          @if (!hasTarget(mac)) {
+            <button type="button" [disabled]="busy()" (click)="changeTarget(mac, true)" class="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-primary">{{ de ? 'Überwachen' : 'Monitor' }}</button>
+          }
+        </div>
+      }
+    }
+  </div>
+</section>

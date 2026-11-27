@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { DeviceStoreService } from './device-store.service';
 import { ProbeApiService } from './probe-api.service';
+import { NetworkApiService } from './network-api.service';
 
 describe('DeviceStoreService', () => {
   let service: DeviceStoreService;
@@ -16,18 +17,16 @@ describe('DeviceStoreService', () => {
     probeApiSpy.checkStatuses.and.resolveTo([]);
 
     TestBed.configureTestingModule({
-      providers: [DeviceStoreService, { provide: ProbeApiService, useValue: probeApiSpy }]
+      providers: [DeviceStoreService, { provide: ProbeApiService, useValue: probeApiSpy }, { provide: NetworkApiService, useValue: {} }]
     });
 
     service = TestBed.inject(DeviceStoreService);
     await service.initialize();
   });
 
-  it('seeds two default devices on first initialize', () => {
+  it('seeds the configured default devices on first initialize', () => {
     const devices = service.devices();
-    expect(devices.length).toBeGreaterThanOrEqual(2);
-    expect(devices.some((item) => item.name === 'Living Room PS5')).toBeTrue();
-    expect(devices.some((item) => item.name === 'Office PC')).toBeTrue();
+    expect(devices.map(({ name }) => name)).toEqual(jasmine.arrayContaining(['PS5-Leo', 'PS5-Ben', 'PS5-Frank', 'PC-Ben']));
   });
 
   it('adds a new valid device and persists it in local state', async () => {

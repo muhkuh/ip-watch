@@ -1,0 +1,51 @@
+<section class="scroll-area h-full px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1rem)]">
+  <div class="mx-auto max-w-4xl">
+    <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <a routerLink="/network" class="inline-flex min-h-[var(--tap-min)] items-center text-sm font-semibold text-primary">{{ text.back }}</a>
+        <h1 class="font-heading text-3xl text-text">{{ text.title }}</h1>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" (click)="reload()" [disabled]="busy()" class="inventory-button">{{ text.reload }}</button>
+        @if (panel()) {
+          <button type="button" (click)="export()" [disabled]="busy()" class="inventory-button">{{ text.export }}</button>
+          <button type="button" (click)="file.click()" [disabled]="busy()" class="inventory-button">{{ text.import }}</button>
+          <input #file type="file" accept=".json,application/json" (change)="import(file)" hidden>
+        }
+      </div>
+    </header>
+
+    <p role="status" class="mb-3 text-sm text-muted">{{ feedback() || (busy() && !panel() ? text.loading : '') }}</p>
+    @if (panel(); as data) {
+      <ul class="grid gap-3 sm:grid-cols-2">
+        @for (port of data.ports; track port.position) {
+          <li class="min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+            <h2 class="break-words font-heading text-lg text-text">{{ text.position }} {{ port.position }}@if (port.label) { · {{ port.label }} }</h2>
+            @if (draft()?.position === port.position) {
+              @if (draft(); as entry) {
+                <form class="mt-2 grid gap-3 text-sm text-text" (ngSubmit)="save(entry)">
+                  <label>{{ text.label }}<input name="label" [(ngModel)]="entry.label" maxlength="80"></label>
+                  <label>{{ text.room }}<input name="room" [(ngModel)]="entry.room" maxlength="80"></label>
+                  <label>{{ text.outlet }}<input name="outlet" [(ngModel)]="entry.outlet" maxlength="80"></label>
+                  <label>{{ text.switchPort }}<input type="number" name="switchPort" [(ngModel)]="entry.switchPort" min="1" max="16" step="1"></label>
+                  <label>{{ text.notes }}<textarea name="notes" [(ngModel)]="entry.notes" maxlength="500" rows="3"></textarea></label>
+                  <label class="flex min-h-[var(--tap-min)] items-center gap-2"><input type="checkbox" name="verified" [(ngModel)]="entry.verified">{{ text.verified }}</label>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="submit" [disabled]="busy()" class="inventory-button text-primary">{{ text.save }}</button>
+                    <button type="button" (click)="draft.set(null)" [disabled]="busy()" class="inventory-button">{{ text.cancel }}</button>
+                  </div>
+                </form>
+              }
+            } @else {
+              <p class="mt-1 break-words text-sm text-text">@if (port.room) { {{ port.room }} · }{{ port.outlet || text.unassigned }}</p>
+              <p class="mt-1 text-sm text-muted">{{ port.verified ? text.verified : text.unverified }}</p>
+              <p class="text-sm text-muted">{{ port.switchPort === null ? text.unpatched : text.switchPort + ' ' + port.switchPort }} · {{ text.link }}</p>
+              @if (port.notes) { <p class="mt-2 whitespace-pre-wrap break-words text-sm text-muted">{{ port.notes }}</p> }
+              <button type="button" (click)="edit(port)" [disabled]="busy() || !!draft()" class="inventory-button mt-2">{{ text.edit }}</button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</section>

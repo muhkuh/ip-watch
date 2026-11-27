@@ -1,0 +1,9 @@
+<scpd xmlns="urn:dslforum-org:service-1-0">
+  <actionList>
+    <action><name>X_AVM-DE_GetHostListPath</name></action>
+    <action><name>X_AVM-DE_GetMeshListPath</name></action>
+    <action><name>GetHostNumberOfEntries</name></action>
+    <action><name>GetGenericHostEntry</name></action>
+    <action><name>X_AVM-DE_WakeOnLANByMACAddress</name></action>
+  </actionList>
+</scpd>

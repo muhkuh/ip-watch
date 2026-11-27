@@ -1,0 +1,91 @@
+<section class="scroll-area h-full px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-[calc(env(safe-area-inset-top)+1rem)]">
+  <div class="mx-auto max-w-3xl">
+    <header class="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <a routerLink="/" [state]="{ skipSplash: true }" class="inline-flex min-h-[var(--tap-min)] items-center text-sm font-semibold text-primary">{{ text.back }}</a>
+        <h1 class="font-heading text-3xl text-text">{{ text.title }}</h1>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a routerLink="/network/patch-panel" class="inline-flex min-h-[var(--tap-min)] items-center rounded-md border border-primary/40 px-3 text-sm font-semibold text-primary">{{ text.patchPanel }}</a>
+        <a routerLink="/network/diagnostics" class="inline-flex min-h-[var(--tap-min)] items-center rounded-md border border-primary/40 px-3 text-sm font-semibold text-primary">{{ locale === 'de' ? 'Diagnose' : 'Diagnostics' }}</a>
+        <button type="button" (click)="refresh()" [disabled]="busy()"
+          class="min-h-[var(--tap-min)] rounded-md border border-[var(--card-border)] px-3 text-sm font-semibold text-text disabled:opacity-50">
+          {{ text.refresh }}
+        </button>
+      </div>
+    </header>
+
+    <section class="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4" aria-labelledby="network-router">
+      @let data = snapshot();
+      @let router = data?.router;
+      @let state = displayedState();
+      @let problem = error();
+      <h2 id="network-router" class="break-words font-heading text-xl text-text">{{ router?.name || router?.model || 'FRITZ!Box' }}</h2>
+      @if (router?.softwareVersion; as version) {
+        <p class="mt-1 text-sm text-muted">FRITZ!OS {{ version }}</p>
+      }
+      <p class="mt-2 text-sm text-muted">{{ text.source }} · FRITZ! TR-064</p>
+      <div role="status" class="mt-2 text-sm text-muted">
+        @if (data) {
+          <p>{{ text[state] }}@if (state === 'stale' && data.partial) { · {{ text.partial }} }</p>
+          @if (data.observedAt; as timestamp) {
+            <p>{{ text.observed }} · <time [attr.datetime]="timestamp">{{ formatDate(timestamp) }}</time></p>
+          }
+        } @else if (!problem) {
+          <p>{{ text.loading }}</p>
+        }
+        @if (problem) {
+          <p class="text-danger">{{ text[problem] }}</p>
+        }
+      </div>
+    </section>
+
+    <section class="mt-6" aria-labelledby="mesh-title">
+      <h2 id="mesh-title" class="mb-3 font-heading text-xl text-text">Mesh</h2>
+      @if (mesh(); as meshData) {
+        <p class="mb-2 text-sm text-muted">FRITZ! TR-064 · {{ meshData.state }} @if (meshData.observedAt) { · {{ formatDate(meshData.observedAt) }} }</p>
+        @if (meshData.topology; as topology) {
+          <ul class="space-y-2">
+            @for (node of topology.nodes; track node.id) {
+              <li class="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3 text-sm text-text">
+                <span class="font-semibold">{{ node.name || node.model || node.id }}</span>
+                @if (node.role !== 'unknown') { · {{ node.role }} }
+                @for (link of topology.links; track link.id) {
+                  @if (link.from === node.id || link.to === node.id) {
+                    <p class="text-muted">{{ link.type }} · {{ link.state }} · {{ meshNodeName(link.from === node.id ? link.to : link.from) }} @if (link.rxSignalDbm !== null) { · {{ link.rxSignalDbm }} dBm }</p>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm text-muted">{{ locale === 'de' ? 'Mesh-Daten nicht verfügbar' : 'Mesh data unavailable' }} @if (meshData.errorCode) { ({{ meshData.errorCode }}) }</p>
+        }
+      }
+    </section>
+
+    @if (snapshot()?.hosts; as hosts) {
+      <section class="mt-6" aria-labelledby="network-hosts">
+        <h2 id="network-hosts" class="mb-3 font-heading text-xl text-text">{{ text.hosts }} ({{ hosts.length }})</h2>
+        @if (hosts.length) {
+          <ul class="grid gap-3 sm:grid-cols-2">
+            @for (host of hosts; track host.macAddress ?? $index) {
+              <li class="min-w-0 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-4">
+                <h3 class="break-words font-semibold text-text">{{ host.hostname || text.unknown }}</h3>
+                <p class="mt-1 text-sm text-muted">{{ host.reportedActive === true ? text.active : host.reportedActive === false ? text.inactive : text.stateUnknown }}</p>
+                @for (address of host.addresses; track address) {
+                  <p class="break-all font-mono text-xs text-text">{{ address }}</p>
+                }
+                @if (host.macAddress) {
+                  <p class="mt-1 font-mono text-xs text-muted">{{ host.macAddress }}</p>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm text-muted">{{ text.empty }}</p>
+        }
+      </section>
+    }
+  </div>
+</section>

@@ -107,3 +107,21 @@ Checklist:
 3. Fill at least two critical flows.
 4. Define measurable NFR targets.
 5. Add first three accepted ADR-light decisions.
+
+## 9. FRITZ! observations
+
+The Probe Host owns one optional TR-064 collector. The collector polls the configured router over HTTPS and exposes the latest in-memory observation through `/api/v1/network/`. Angular reads the API through the same Nginx origin as the app. Multiple open clients share the collector. Polls run sequentially, with a deadline and failure backoff, and stop when the service shuts down.
+
+The adapter discovers DeviceInfo and Hosts capabilities from the descriptor and service descriptions. It reads an advertised host list or uses bounded indexed reads when bulk listing is unsupported. It accepts only the configured HTTPS origin with certificate validation. It normalizes display fields and drops router session data and mesh login metadata. The mesh flag reflects an advertised action. No mesh topology is collected in Phase 1.
+
+Each usable snapshot records a UTC timestamp and whether the collection was partial. Whole-poll failures preserve that observation and mark it stale. Restarting the service returns the integration to the initial polling state. The original tracked device records and probe settings live in the browser's current origin. The collector uses no browser persistence and performs no migration or automatic association with tracked devices.
+
+## 10. Manual patch panel inventory
+
+The FRITZ! adapter reads the advertised mesh-list path over the existing bounded, authenticated TLS transport and exposes a sanitized topology snapshot. Mesh retrieval errors are independent of host-list collection. The dashboard can bind a tracked device to the selected FRITZ! MAC address and refresh a single unambiguous IPv4 address from a current complete snapshot. Existing devices without an association retain their configured IP. The legacy ICMP probe returns its measured round-trip time where present.
+
+The diagnostics service stores up to 32 owner-selected FRITZ! MAC targets separately from browser-managed devices. It polls sequentially with a 30-second delay between completed batches and stores observations in `diagnostics.sqlite` beside the inventory database. It uses only one unambiguous current IPv4 address from a complete FRITZ! snapshot. Unknown addresses and execution errors become null observations, and an unanswered ping is recorded separately. Mesh link changes are recorded with observation times. An absent polling interval, service shutdown or router failure creates a gap. Samples and link events expire after 24 hours. The timeline aligns observed events and samples without claiming causation. Pi-to-device ICMP and router-provided topology cannot independently identify the source of a gaming or Internet issue.
+
+The opt-in inventory uses built-in `node:sqlite` on Node 24.15 or later and an explicitly configured absolute database path. Schema v1 initializes exactly twelve patch positions. It stores physical room/outlet labels and an optional planned or observed manual switch port assignment. The router observation path and browser-managed probe devices have no write access to these records. Live switch status remains unknown until switch collection is available.
+
+Each update or complete JSON import runs in a single write transaction. A panel revision detects competing writers, including multiple processes opening the same file. Validation checks the final combined mapping so duplicates are refused and mappings can move in a complete import. A failed transaction leaves the prior revision and contents intact. The service keeps health and legacy probe behavior available if inventory is disabled or configuration fails.

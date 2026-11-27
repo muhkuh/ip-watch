@@ -183,3 +183,14 @@ Expected result:
 - Result: PASS | FAIL
 - Open issues:
 - Follow-up owner and due date:
+
+## 9. Owner validation for FRITZ! integration
+
+Run this procedure only after the owner approves the target deployment and access policy. Use the existing app origin and preserve browser data when evaluating a new origin. Confirm the router's exact model, FRITZ!OS version, TR-064 secure port and certificate trust. Verify the account can read the Hosts service. Keep the account and token values on the host and in the app settings as appropriate. Do not copy credentials, raw router responses or session URLs into verification notes.
+
+1. Prepare a backup of the current web and service artifacts and config. Verify the rollback procedure and keep the browser's existing tracked data available.
+2. Activate the collector using the [deployment settings](_deployment_base.md#10-fritz-integration-operations). Confirm unmanaged services stay up and `/api/health` behaves as before.
+3. Open Network on the existing app origin. Check the router identity, representative devices, their router-reported status and the observation timestamp. Compare with the FRITZ!Box device list. Record whether bulk or indexed listing and the mesh action are advertised. Mesh rendering requires a separate verified payload review.
+4. In a separate browser test context, verify an unauthenticated request to the inventory returns `401`. With the configured token, verify the same-origin response succeeds and includes `Cache-Control: no-store`.
+5. Confirm the existing PWA install or standalone launch, status refresh, health screen, device CRUD, and device/settings persistence on the current origin. In a secure context, confirm the service worker caches app assets and leaves network responses out of its cache. Verify interruption and recovery with the local fixture before rollout.
+6. Verify either successful activation or rollback using the acceptance checks. Log verification outcomes without private device identifiers.

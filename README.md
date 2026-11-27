@@ -9,6 +9,8 @@ It combines an Angular frontend with a Node.js probe host that performs ICMP pin
 - Reachability status via `PING`, `HTTP`, `PING+HTTP`, or `UNKNOWN`.
 - Probe endpoint settings in UI (host, protocol, optional port, optional API token).
 - Health diagnostics page and verification scripts for runtime checks.
+- Optional read-only FRITZ!Box host inventory in the Network view.
+- Optional shared SQLite inventory for a twelve-position patch panel with JSON export/import.
 - Local Docker test setup and native Raspberry Pi deployment flow.
 
 ## Architecture Overview
@@ -32,7 +34,7 @@ High-level flow:
 - `runtime-data/`: runtime data helpers/placeholders.
 
 ## Prerequisites
-- Node.js `>=20` and npm.
+- Node.js 24 LTS and npm for builds and releases. Inventory requires at least Node 24.15.
 - Docker + Docker Compose (for containerized local testing).
 - Linux environment with `ping` available for probe-host runtime.
 
@@ -84,6 +86,8 @@ npm run start
 
 Default local probe host endpoint is `http://localhost:3001` (health: `/api/health`).
 
+To develop the Network view against a local probe host, start Angular with `npm start -- --proxy-config proxy.network.conf.json` from `frontend/`. This forwards the same-origin network API to loopback.
+
 ## Probe Host Configuration
 Environment variables (`probe-host` and Docker service):
 - `HOST` (default: `0.0.0.0`)
@@ -101,6 +105,14 @@ Auth behavior:
 - `GET /api/health`
 - `GET /api/status`
 - `POST /api/status/check-now`
+- `GET /api/v1/network/integrations`
+- `GET /api/v1/network/devices`
+- `GET /api/v1/patch-panels/main/ports`
+- `PUT /api/v1/patch-panels/main/ports/:position`
+- `GET /api/v1/patch-panels/main/export`
+- `PUT /api/v1/patch-panels/main/import`
+
+The FRITZ! collector is disabled by default. When enabled, it reads the router and host list over verified TR-064 HTTPS. The Network view uses the existing IP Watch API token configured in probe settings. Router credentials are configured on the service host. See the [deployment configuration](docs/deployment/_deployment_base.md#10-fritz-integration-operations) and [API contract](docs/api.md#9-network-observations-phase-1).
 
 Minimal verification:
 
@@ -115,6 +127,8 @@ With token:
 ```
 
 ## Raspberry Pi Deployment
+
+Use the [release and rollback runbook](docs/deployment/pi-release-runbook.md) to stage and update an existing Pi. The fixture-tested Phase 2 inventory needs Node 24.15 or later. With the inventory disabled, the application can still run its legacy probe flow on Node 20.
 Native installer (run on target Pi):
 
 ```bash
@@ -150,6 +164,8 @@ Integration smoke test:
 ```bash
 ./deploy/scripts/docker-smoke-test.sh
 ```
+
+Backend integration tests run with `npm test` from `probe-host/`. The loopback router fixture generates a temporary certificate using OpenSSL. Set `OPENSSL_BIN` if the executable is outside `PATH`.
 
 ## Documentation Index
 Start with:

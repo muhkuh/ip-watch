@@ -3,6 +3,8 @@ import { Injectable, computed, signal } from '@angular/core';
 import { CreateDeviceInput, Device } from '../models/device';
 import { ProbeStatus } from '../models/probe';
 import { ProbeApiService } from './probe-api.service';
+import { NetworkApiService } from './network-api.service';
+import { firstValueFrom } from 'rxjs';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { generateId } from '../utils/uuid';
 
@@ -16,7 +18,7 @@ const SEEDED_FLAG = 'ip-watch-seeded-v1';
  */
 @Injectable({ providedIn: 'root' })
 export class DeviceStoreService {
-  constructor(private readonly probeApi: ProbeApiService) {}
+  constructor(private readonly probeApi: ProbeApiService, private readonly networkApi: NetworkApiService) {}
 
   private readonly devicesState = signal<Device[]>([]);
   private readonly loadingState = signal(true);
@@ -25,6 +27,7 @@ export class DeviceStoreService {
   private db: IDBDatabase | null = null;
   private useMemoryStore = false;
   private memoryDevices: Device[] = [];
+  private syncing = false;
 
   readonly devices = computed(() => this.devicesState());
   readonly loading = computed(() => this.loadingState());
@@ -69,6 +72,7 @@ export class DeviceStoreService {
       ip: normalized.ip,
       probeProtocol: normalized.probeProtocol,
       probePort: normalized.probePort,
+      fritzMac: normalized.fritzMac ?? null,
       statusSource: 'UNKNOWN',
       isReachable: false,
       lastCheckedAt: new Date().toISOString(),
@@ -96,7 +100,8 @@ export class DeviceStoreService {
       type: normalized.type,
       ip: normalized.ip,
       probeProtocol: normalized.probeProtocol,
-      probePort: normalized.probePort
+      probePort: normalized.probePort,
+      fritzMac: normalized.fritzMac ?? null
     };
 
     await this.putDevice(updatedDevice);
@@ -124,8 +129,32 @@ export class DeviceStoreService {
    * Pulls latest statuses from the probe API and merges by IP.
    */
   async syncStatusesFromProbe(): Promise<void> {
+    if (this.syncing) return;
+    this.syncing = true;
     this.setProbeConnectionPending();
     try {
+      const tracked = this.devicesState();
+      if (tracked.some((device) => device.fritzMac)) {
+        try {
+          const snapshot = await firstValueFrom(this.networkApi.getDevices());
+          if (snapshot.state === 'ready' && snapshot.hosts) {
+            const current = this.devicesState();
+            const updated = current.map((device) => {
+              if (!device.fritzMac) return device;
+              const matches = snapshot.hosts!.filter((host) => host.macAddress === device.fritzMac);
+              const addresses = matches.length === 1 ? matches[0].addresses.filter((address) => !address.includes(':')) : [];
+              if (addresses.length !== 1 || addresses[0] === device.ip ||
+                  snapshot.hosts!.filter((host) => host.addresses.includes(addresses[0])).length !== 1 ||
+                  current.some((other) => other.id !== device.id && other.ip === addresses[0])) return device;
+              return { ...device, ip: addresses[0] };
+            });
+            await Promise.all(updated.filter((device, index) => device !== current[index]).map((device) => this.putDevice(device)));
+            this.devicesState.set(updated);
+          }
+        } catch {
+          // Keep the last verified address when discovery is unavailable.
+        }
+      }
       const statusRequest = this.devicesState().map((device) => ({
         name: device.name,
         type: device.type,
@@ -148,6 +177,7 @@ export class DeviceStoreService {
             statusSource: 'UNKNOWN' as const,
             lastCheckedAt: checkedAt,
             pingReachable: null,
+            latencyMs: null,
             httpReachable: null
           };
         }
@@ -157,6 +187,12 @@ export class DeviceStoreService {
           statusSource: probeStatus.statusSource,
           lastCheckedAt: probeStatus.lastCheckedAt,
           pingReachable: probeStatus.pingReachable,
+          latencyMs: probeStatus.latencyMs ?? null,
+          latencyHistory: [...(device.latencyHistory ?? []), {
+            at: probeStatus.lastCheckedAt,
+            latencyMs: probeStatus.latencyMs ?? null,
+            responded: probeStatus.pingReachable
+          }].slice(-120),
           httpReachable: probeStatus.httpReachable
         };
       });
@@ -172,11 +208,14 @@ export class DeviceStoreService {
         statusSource: 'UNKNOWN' as const,
         lastCheckedAt: checkedAt,
         pingReachable: null,
+        latencyMs: null,
         httpReachable: null
       }));
       this.devicesState.set(unknown);
       await Promise.all(unknown.map((item) => this.putDevice(item)));
       this.probeConnectionState.set('unavailable');
+    } finally {
+      this.syncing = false;
     }
   }
 
@@ -411,7 +450,8 @@ export class DeviceStoreService {
       type: input.type,
       ip: normalizedIp,
       probeProtocol: normalizedProbeProtocol,
-      probePort: normalizedProbePort
+      probePort: normalizedProbePort,
+      fritzMac: input.fritzMac ?? null
     };
   }
 

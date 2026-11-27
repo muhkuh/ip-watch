@@ -7,7 +7,7 @@ import { CreateDeviceInput } from '../models/device';
 import { AppConfigService } from './app-config.service';
 
 type UnknownRecord = Record<string, unknown>;
-const CHECK_STATUS_TIMEOUT_MS = 4000;
+const CHECK_STATUS_TIMEOUT_MS = 60000;
 
 /**
  * Handles communication with the Raspberry Pi probe API and normalizes status payloads.
@@ -86,7 +86,9 @@ export class ProbeApiService {
       this.stringValue(record['lastCheckedAt'] ?? record['checkedAt'] ?? record['timestamp']) ??
       new Date().toISOString();
 
-    return { ip, isReachable, statusSource, lastCheckedAt, pingReachable, httpReachable };
+    const latency = record['latencyMs'];
+    const latencyMs = typeof latency === 'number' && Number.isFinite(latency) && latency >= 0 ? latency : null;
+    return { ip, isReachable, statusSource, lastCheckedAt, pingReachable, httpReachable, latencyMs };
   }
 
   private normalizeSource(value: unknown): ProbeStatus['statusSource'] {

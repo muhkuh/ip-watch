@@ -6,6 +6,13 @@
 const express = require('express');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { createFritzCollector } = require('./integrations/fritz/collector');
+const { createNetworkRouter } = require('./routes/network');
+const { createPatchPanelRouter } = require('./routes/patch-panels');
+const { openInventory } = require('./inventory/store');
+const { openDiagnostics } = require('./diagnostics/store');
+const { createMonitor } = require('./diagnostics/monitor');
+const { createDiagnosticsRouter } = require('./routes/diagnostics');
 
 const execFileAsync = promisify(execFile);
 
@@ -57,10 +64,11 @@ function normalizeIpv4(value) {
  */
 async function pingIp(ip) {
   try {
-    await execFileAsync('ping', ['-c', '1', '-W', String(CONFIG.pingTimeoutSec), ip], { timeout: 3000 });
-    return true;
-  } catch {
-    return false;
+    const { stdout } = await execFileAsync('ping', ['-c', '1', '-W', String(CONFIG.pingTimeoutSec), ip], { timeout: 3000, env: { ...process.env, LC_ALL: 'C' } });
+    const match = stdout.match(/\btime=([0-9]+(?:\.[0-9]+)?)\s*ms/);
+    return { reachable: true, latencyMs: match ? Number(match[1]) : null };
+  } catch (error) {
+    return { reachable: error.code === 1 ? false : null, latencyMs: null };
   }
 }
 
@@ -162,7 +170,8 @@ function validateAndNormalizeDevice(input) {
  * @returns {Promise<object>}
  */
 async function probeDevice(device) {
-  const pingReachable = await pingIp(device.ip);
+  const ping = await pingIp(device.ip);
+  const pingReachable = ping.reachable;
   const httpReachable = await httpProbe(device);
   const source = statusSource(pingReachable, httpReachable);
   const isReachable = source !== 'UNKNOWN';
@@ -172,6 +181,7 @@ async function probeDevice(device) {
     isReachable,
     statusSource: source,
     pingReachable,
+    latencyMs: ping.latencyMs,
     httpReachable,
     lastCheckedAt: new Date().toISOString(),
     checkError: null
@@ -185,6 +195,32 @@ async function probeDevice(device) {
 async function main() {
   const app = express();
   const statusCache = new Map();
+  const fritz = createFritzCollector(process.env, CONFIG.apiToken);
+
+  let store;
+  let diagnostics;
+  let monitor;
+  let errorCode = 'INVENTORY_DISABLED';
+  if (process.env.INVENTORY_ENABLED === 'true') {
+    errorCode = 'INVENTORY_CONFIGURATION_ERROR';
+    try {
+      if (!CONFIG.apiToken) throw new Error('Missing API token.');
+      store = openInventory(process.env.INVENTORY_DB_PATH);
+      try {
+        diagnostics = openDiagnostics(process.env.INVENTORY_DB_PATH);
+        monitor = createMonitor(diagnostics, fritz, pingIp);
+      } catch {
+        console.error('[diagnostics] initialization failed');
+      }
+    } catch (error) {
+      const code = typeof error.code === 'string' ? ` (${error.code})` : '';
+      console.error(`[inventory] initialization failed${code}`);
+    }
+  }
+
+  app.use('/api/v1/network', createNetworkRouter(fritz, CONFIG.apiToken));
+  app.use('/api/v1/diagnostics', createDiagnosticsRouter(diagnostics, fritz, CONFIG.apiToken));
+  app.use('/api/v1/patch-panels', createPatchPanelRouter({ store, errorCode }, CONFIG.apiToken));
 
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -257,10 +293,19 @@ async function main() {
     res.status(404).json({ error: 'Not found' });
   });
 
-  app.listen(CONFIG.port, CONFIG.host, () => {
+  const server = app.listen(CONFIG.port, CONFIG.host, () => {
     console.log(`[probe-host] listening on ${CONFIG.host}:${CONFIG.port}`);
-    console.log('[probe-host] mode: stateless probe API (device data remains in frontend)');
+    console.log('[probe-host] tracked device data remains in frontend');
+    fritz.start();
+    monitor?.start();
   });
+  const shutdown = () => {
+    fritz.stop();
+    monitor?.stop();
+    server.close(() => { store?.close(); diagnostics?.close(); });
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
 }
 
 main().catch((error) => {

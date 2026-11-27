@@ -8,4 +8,5 @@ export interface ProbeStatus {
   lastCheckedAt: string;
   pingReachable: boolean | null;
   httpReachable: boolean | null;
+  latencyMs?: number | null;
 }
