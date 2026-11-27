@@ -1,4 +1,6 @@
-function createMonitor(store, fritz, ping) {
+const { targets, routerAddress } = require('./path-targets');
+
+function createMonitor(store, fritz, ping, routerUrl) {
   let timer;
   let stopped = false;
   let running = false;
@@ -17,7 +19,14 @@ function createMonitor(store, fritz, ping) {
         const result = address ? await ping(address) : { reachable: null, latencyMs: null };
         values.push({ mac: target.mac, address, responded: result.reachable, latencyMs: result.latencyMs });
       }
-      if (!stopped) store.record(new Date().toISOString(), values, mesh.state === 'ready' && !mesh.errorCode ? mesh.topology : null);
+      const pathValues = [];
+      for (const id of store.pathTargets?.() ?? []) {
+        if (stopped) return;
+        const address = id === 'router' ? routerAddress(routerUrl) : targets[id]?.address;
+        const result = address ? await ping(address) : { reachable: null, latencyMs: null };
+        pathValues.push({ id, time: new Date().toISOString(), address: address ?? null, responded: result.reachable, latencyMs: result.latencyMs });
+      }
+      if (!stopped) store.record(new Date().toISOString(), values, mesh.state === 'ready' && !mesh.errorCode ? mesh.topology : null, pathValues);
     } catch {
       console.error('[diagnostics] collection failed');
     } finally {

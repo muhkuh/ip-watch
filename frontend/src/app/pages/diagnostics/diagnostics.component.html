@@ -4,6 +4,23 @@
     <h1 class="font-heading text-3xl text-text">{{ de ? 'Latenzdiagnose' : 'Latency diagnostics' }}</h1>
     <p class="mt-2 text-sm text-muted">{{ de ? 'ICMP vom Raspberry Pi · Verlauf 24 Stunden · unbeantwortete Pakete können gefiltert werden' : 'ICMP from the Raspberry Pi · 24-hour history · unanswered packets may be filtered' }}</p>
     @if (error()) { <p role="alert" class="mt-3 text-sm text-danger">{{ error() }}</p> }
+    <h2 class="mt-6 font-heading text-xl text-text">{{ de ? 'Verbindungsübersicht' : 'Connection overview' }}</h2>
+    <p class="mt-1 text-sm text-muted">{{ de ? 'Letzte Messung je Ziel und Auffälligkeiten der letzten 24 Stunden. Keine ICMP-Antwort kann durch Filter entstehen.' : 'Latest measurement per target and observations over the last 24 hours. ICMP replies may be filtered.' }}</p>
+    @if (!pathOverview().length) { <p class="mt-2 text-sm text-muted">{{ de ? 'Aktiviere unten Router- oder Internetziele.' : 'Enable router or Internet targets below.' }}</p> }
+    <div class="mt-2 grid gap-3 sm:grid-cols-3">
+      @for (item of pathOverview(); track item.target.id) {
+        <div class="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+          <h3 class="font-semibold text-text">{{ item.target.name }}</h3>
+          <p class="mt-1 text-sm text-text">{{ pathStatus(item.history) }}</p>
+          @if (item.history; as history) {
+            @let stats = summary(history);
+            <p class="mt-1 text-sm text-muted">{{ de ? 'Unbeantwortet / Messlücken' : 'Unanswered / gaps' }} · {{ stats.unanswered }} / {{ stats.gaps }}</p>
+            @if (history.samples[0]; as sample) { <p class="text-xs text-muted">{{ time(sample.time) }}</p> }
+          }
+          <button type="button" (click)="showPathHistory(item.target.id)" class="mt-2 rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-primary">{{ de ? 'Verlauf' : 'History' }}</button>
+        </div>
+      }
+    </div>
     <h2 class="mt-6 font-heading text-xl text-text">{{ de ? 'Überwachte Geräte' : 'Monitored devices' }}</h2>
     @if (!targets().length) { <p class="mt-2 text-sm text-muted">{{ de ? 'Wähle ein Gerät aus der FRITZ!-Liste.' : 'Select a device from the FRITZ! list.' }}</p> }
     @for (target of targets(); track target.mac) {
@@ -40,6 +57,17 @@
           }
         </div>
       }
+    }
+    <h2 class="mt-6 font-heading text-xl text-text">{{ de ? 'Router und Internet' : 'Router and Internet' }}</h2>
+    <p class="mt-2 text-sm text-muted">{{ de ? 'Messungen vom Raspberry Pi. Keine ICMP-Antwort kann auch durch Filter entstehen; sie beweist keinen Internetausfall.' : 'Measurements from the Raspberry Pi. No ICMP reply may be caused by filtering and does not prove an Internet outage.' }}</p>
+    @for (target of pathTargets(); track target.id) {
+      <div class="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-3">
+        <span class="min-w-0 flex-1 text-sm text-text">{{ target.name }} · {{ target.address || (de ? 'Adresse nicht konfiguriert' : 'Address not configured') }}</span>
+        @if (target.enabled) {
+          <button type="button" (click)="showPathHistory(target.id)" class="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-primary">{{ de ? 'Verlauf' : 'History' }}</button>
+        }
+        <button type="button" [disabled]="busy()" (click)="changePath(target.id, !target.enabled)" class="rounded-md border border-[var(--card-border)] px-3 py-2 text-sm text-primary">{{ target.enabled ? (de ? 'Beenden' : 'Stop') : (de ? 'Überwachen' : 'Monitor') }}</button>
+      </div>
     }
   </div>
 </section>

@@ -208,7 +208,7 @@ async function main() {
       store = openInventory(process.env.INVENTORY_DB_PATH);
       try {
         diagnostics = openDiagnostics(process.env.INVENTORY_DB_PATH);
-        monitor = createMonitor(diagnostics, fritz, pingIp);
+        monitor = createMonitor(diagnostics, fritz, pingIp, process.env.FRITZ_URL);
       } catch {
         console.error('[diagnostics] initialization failed');
       }

@@ -51,6 +51,8 @@ export interface DiagnosticHistory {
   events: { time: string; id: string; from: string; to: string; type: string; state: string }[];
 }
 
+export interface PathTarget { id: string; name: string; address: string | null; enabled: boolean; }
+
 const PANEL_URL = '/api/v1/patch-panels/main';
 
 @Injectable({ providedIn: 'root' })
@@ -80,6 +82,18 @@ export class NetworkApiService {
 
   getHistory(mac: string): Observable<DiagnosticHistory> {
     return this.request('GET', `/api/v1/diagnostics/targets/${encodeURIComponent(mac)}/history`);
+  }
+
+  getPathTargets(): Observable<PathTarget[]> {
+    return this.request('GET', '/api/v1/diagnostics/path-targets');
+  }
+
+  setPathTarget(id: string, enabled: boolean): Observable<PathTarget[]> {
+    return this.request(enabled ? 'PUT' : 'DELETE', `/api/v1/diagnostics/path-targets/${encodeURIComponent(id)}`);
+  }
+
+  getPathHistory(id: string): Observable<DiagnosticHistory> {
+    return this.request('GET', `/api/v1/diagnostics/path-targets/${encodeURIComponent(id)}/history`);
   }
 
   savePatchPort(revision: number, port: PatchPort): Observable<PatchPanel> {

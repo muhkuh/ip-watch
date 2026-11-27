@@ -83,6 +83,40 @@ test('monitor skips ambiguous addresses and records unavailable observations', a
   monitor.stop();
 });
 
+test('path targets persist and record replies, unanswered probes and unavailable measurements', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'ip-watch-path-'));
+  let store = openDiagnostics(join(dir, 'inventory.sqlite'));
+  t.after(() => { store.close(); rmSync(join(dir, 'diagnostics.sqlite'), { force: true }); rmdirSync(dir); });
+  store.setPathTarget('router', true);
+  store.setPathTarget('cloudflare', true);
+  const now = new Date().toISOString();
+  store.record(now, [], null, [
+    { id: 'router', time: now, address: 'fritz.box', responded: true, latencyMs: 2 },
+    { id: 'cloudflare', time: now, address: '1.1.1.1', responded: false, latencyMs: null },
+    { id: 'cloudflare', time: now, address: null, responded: null, latencyMs: null }
+  ]);
+  store.close();
+  store = openDiagnostics(join(dir, 'inventory.sqlite'));
+  assert.deepEqual(store.pathTargets(), ['cloudflare', 'router']);
+  assert.equal(store.pathHistory('router').samples[0].latencyMs, 2);
+  assert.deepEqual(store.pathHistory('cloudflare').samples.map((item) => item.responded).sort(), [false, null]);
+});
+
+test('monitor probes only enabled fixed path targets and records their observations', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
+  const calls = [];
+  let recorded;
+  const store = { targets: () => [], pathTargets: () => ['router', 'cloudflare'], record: (_time, _values, _topology, paths) => { recorded = paths; } };
+  const fritz = { devices: () => ({ state: 'unavailable' }), mesh: () => ({ state: 'unavailable' }) };
+  const monitor = createMonitor(store, fritz, async (address) => { calls.push(address); return { reachable: true, latencyMs: 4 }; }, 'https://fritz.box:49443');
+  monitor.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, ['fritz.box', '1.1.1.1']);
+  assert.equal(recorded[0].responded, true);
+  assert.equal(recorded[1].latencyMs, 4);
+  monitor.stop();
+});
+
 test('diagnostics API requires a token and only accepts currently discovered MAC addresses', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'ip-watch-api-'));
   const store = openDiagnostics(join(dir, 'inventory.sqlite'));
@@ -98,6 +132,10 @@ test('diagnostics API requires a token and only accepts currently discovered MAC
   const url = `http://127.0.0.1:${server.address().port}/targets`;
   assert.equal((await fetch(url)).status, 401);
   const headers = { Authorization: 'Bearer fixture-token' };
+  const paths = url.replace('/targets', '/path-targets');
+  assert.equal((await fetch(`${paths}/127.0.0.1`, { method: 'PUT', headers })).status, 422);
+  assert.equal((await fetch(`${paths}/cloudflare`, { method: 'PUT', headers })).status, 200);
+  assert.equal((await fetch(`${paths}/cloudflare/history`, { headers })).status, 200);
   const absent = await fetch(`${url}/02:00:00:00:00:02`, { method: 'PUT', headers });
   assert.equal(absent.status, 409);
   const added = await fetch(`${url}/02:00:00:00:00:01`, { method: 'PUT', headers });

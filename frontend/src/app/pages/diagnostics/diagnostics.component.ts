@@ -2,7 +2,7 @@ import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom, timer } from 'rxjs';
-import { DiagnosticHistory, DiscoveredHost, NetworkApiService } from '../../services/network-api.service';
+import { DiagnosticHistory, DiscoveredHost, NetworkApiService, PathTarget } from '../../services/network-api.service';
 import { safeGetItem } from '../../utils/storage';
 
 @Component({
@@ -17,6 +17,9 @@ export class DiagnosticsComponent implements OnInit {
   protected readonly de = safeGetItem('ip-watch-locale-v1') === 'de';
   protected readonly hosts = signal<DiscoveredHost[]>([]);
   protected readonly targets = signal<{ mac: string; name: string }[]>([]);
+  protected readonly pathTargets = signal<PathTarget[]>([]);
+  protected readonly pathOverview = signal<{ target: PathTarget; history: DiagnosticHistory | null }[]>([]);
+  protected readonly pathSelected = signal(false);
   protected readonly selected = signal('');
   protected readonly history = signal<DiagnosticHistory | null>(null);
   protected readonly error = signal('');
@@ -30,10 +33,16 @@ export class DiagnosticsComponent implements OnInit {
     if (this.busy()) return;
     this.busy.set(true);
     try {
-      const [discovery, targets] = await Promise.all([firstValueFrom(this.api.getDevices()), firstValueFrom(this.api.getTargets())]);
+      const [discovery, targets, paths] = await Promise.all([firstValueFrom(this.api.getDevices()), firstValueFrom(this.api.getTargets()), firstValueFrom(this.api.getPathTargets())]);
       this.hosts.set(discovery.state === 'ready' ? discovery.hosts ?? [] : []);
       this.targets.set(targets);
-      if (this.selected()) this.history.set(await firstValueFrom(this.api.getHistory(this.selected())));
+      this.pathTargets.set(paths);
+      const overview = await Promise.all(paths.filter((target) => target.enabled).map(async (target) => {
+        try { return { target, history: await firstValueFrom(this.api.getPathHistory(target.id)) }; }
+        catch { return { target, history: null }; }
+      }));
+      this.pathOverview.set(overview);
+      if (this.selected()) this.history.set(await firstValueFrom(this.pathSelected() ? this.api.getPathHistory(this.selected()) : this.api.getHistory(this.selected())));
       this.error.set('');
     } catch {
       this.error.set(this.de ? 'Diagnosedaten nicht verfügbar. Token und Inventar prüfen.' : 'Diagnostics unavailable. Check token and inventory.');
@@ -53,9 +62,37 @@ export class DiagnosticsComponent implements OnInit {
   }
 
   protected async showHistory(mac: string): Promise<void> {
+    this.pathSelected.set(false);
     this.selected.set(mac);
     this.history.set(null);
     try { this.history.set(await firstValueFrom(this.api.getHistory(mac))); }
+    catch { this.error.set(this.de ? 'Verlauf nicht verfügbar.' : 'History unavailable.'); }
+  }
+
+  protected async changePath(id: string, enabled: boolean): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    try {
+      this.pathTargets.set(await firstValueFrom(this.api.setPathTarget(id, enabled)));
+      const target = this.pathTargets().find((item) => item.id === id);
+      if (!enabled) this.pathOverview.update((items) => items.filter((item) => item.target.id !== id));
+      else if (target) {
+        try {
+          const history = await firstValueFrom(this.api.getPathHistory(id));
+          this.pathOverview.update((items) => [...items.filter((item) => item.target.id !== id), { target, history }]);
+        } catch { this.pathOverview.update((items) => [...items.filter((item) => item.target.id !== id), { target, history: null }]); }
+      }
+      if (!enabled && this.pathSelected() && this.selected() === id) { this.selected.set(''); this.history.set(null); }
+      this.error.set('');
+    } catch { this.error.set(this.de ? 'Messziel konnte nicht geändert werden.' : 'Unable to change probe target.'); }
+    finally { this.busy.set(false); }
+  }
+
+  protected async showPathHistory(id: string): Promise<void> {
+    this.pathSelected.set(true);
+    this.selected.set(id);
+    this.history.set(null);
+    try { this.history.set(await firstValueFrom(this.api.getPathHistory(id))); }
     catch { this.error.set(this.de ? 'Verlauf nicht verfügbar.' : 'History unavailable.'); }
   }
 
@@ -65,6 +102,16 @@ export class DiagnosticsComponent implements OnInit {
 
   protected hasTarget(mac: string): boolean {
     return this.targets().some((target) => target.mac === mac);
+  }
+
+  protected pathStatus(history: DiagnosticHistory | null): string {
+    const sample = history?.samples[0];
+    if (!history) return this.de ? 'Verlauf nicht verfügbar' : 'History unavailable';
+    if (!sample) return this.de ? 'Warte auf Messung' : 'Waiting for measurement';
+    if (Date.now() - Date.parse(sample.time) > 300000) return this.de ? 'Messwert älter als 5 Minuten' : 'Measurement older than 5 minutes';
+    if (sample.responded === null) return this.de ? 'Messung nicht möglich' : 'Measurement unavailable';
+    if (!sample.responded) return this.de ? 'Keine ICMP-Antwort' : 'No ICMP reply';
+    return sample.latencyMs === null ? (this.de ? 'Antwort ohne Zeitwert' : 'Reply without timing') : `${sample.latencyMs} ms`;
   }
 
   protected summary(history: DiagnosticHistory): { replies: number; unanswered: number; gaps: number; average: string; variation: string } {

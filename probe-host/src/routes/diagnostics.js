@@ -1,11 +1,28 @@
 const express = require('express');
 const { apiContext, requireApiToken } = require('./versioned-api');
+const { targets, routerAddress } = require('../diagnostics/path-targets');
 const MAC = /^(?:[\da-f]{2}:){5}[\da-f]{2}$/i;
 
 function createDiagnosticsRouter(store, fritz, token) {
   const router = express.Router();
   router.use(apiContext, requireApiToken(token));
   router.use((_req, res, next) => store ? next() : res.locals.fail(503, 'DIAGNOSTICS_UNAVAILABLE', 'Diagnostics storage is unavailable.'));
+  const pathList = () => Object.entries(targets).map(([id, target]) => ({ id, name: target.name, address: id === 'router' ? routerAddress(process.env.FRITZ_URL) : target.address, enabled: store.pathTargets().includes(id) }));
+  router.get('/path-targets', (_req, res) => res.json({ data: pathList() }));
+  router.put('/path-targets/:id', (req, res) => {
+    if (!Object.hasOwn(targets, req.params.id)) return res.locals.fail(422, 'INVALID_TARGET', 'Invalid path target.');
+    store.setPathTarget(req.params.id, true);
+    return res.json({ data: pathList() });
+  });
+  router.delete('/path-targets/:id', (req, res) => {
+    if (!Object.hasOwn(targets, req.params.id)) return res.locals.fail(422, 'INVALID_TARGET', 'Invalid path target.');
+    store.setPathTarget(req.params.id, false);
+    return res.json({ data: pathList() });
+  });
+  router.get('/path-targets/:id/history', (req, res) => {
+    if (!Object.hasOwn(targets, req.params.id)) return res.locals.fail(422, 'INVALID_TARGET', 'Invalid path target.');
+    return res.json({ data: store.pathHistory(req.params.id) });
+  });
   router.get('/targets', (_req, res) => res.json({ data: store.targets() }));
   router.put('/targets/:mac', (req, res) => {
     const mac = req.params.mac.toUpperCase();
